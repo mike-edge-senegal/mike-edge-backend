@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>MIKE EDGE — COCKPIT ADMIN MOBILE</title>
+  <style>
+    :root {
+      --bg-dark: #0D1117;
+      --card-surface: rgba(22, 27, 34, 0.95);
+      --gold-primary: #D4AF37;
+      --gold-bright: #FFD700;
+      --diamond-cyan: #B9F2FF;
+      --emerald-success: #50C878;
+      --alert-red: #E0115F;
+      --text-light: #FFFFFF;
+      --text-muted: #8B949E;
+      --border-gold: rgba(212, 175, 55, 0.4);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-light);
+      padding: 16px;
+      padding-bottom: 40px;
+    }
+
+    .header {
+      text-align: center;
+      padding-bottom: 16px;
+      margin-bottom: 20px;
+      border-bottom: 1px solid var(--border-gold);
+    }
+
+    .header h1 {
+      color: var(--gold-primary);
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+    }
+
+    .header p {
+      color: var(--text-muted);
+      font-size: 12px;
+      margin-top: 4px;
+    }
+
+    .card {
+      background: var(--card-surface);
+      border: 1.5px solid var(--border-gold);
+      border-radius: 16px;
+      padding: 18px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    }
+
+    .card-title {
+      color: var(--gold-bright);
+      font-size: 14px;
+      font-weight: 800;
+      margin-bottom: 12px;
+      letter-spacing: 1px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .label {
+      font-size: 12px;
+      color: var(--text-light);
+      margin-bottom: 6px;
+      display: block;
+      font-weight: 600;
+    }
+
+    select, textarea, input {
+      width: 100%;
+      background: rgba(13, 17, 23, 0.9);
+      border: 1px solid var(--border-gold);
+      border-radius: 10px;
+      color: var(--text-light);
+      padding: 12px;
+      font-size: 14px;
+      margin-bottom: 14px;
+      outline: none;
+    }
+
+    textarea {
+      height: 180px;
+      resize: vertical;
+      font-family: monospace;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .btn {
+      width: 100%;
+      padding: 14px;
+      border-radius: 12px;
+      border: none;
+      font-weight: 800;
+      font-size: 14px;
+      letter-spacing: 1px;
+      cursor: pointer;
+      margin-bottom: 10px;
+      text-transform: uppercase;
+    }
+
+    .btn-gold {
+      background: linear-gradient(180deg, #FFD700 0%, #D4AF37 100%);
+      color: var(--bg-dark);
+      box-shadow: 0 4px 10px rgba(212, 175, 55, 0.3);
+    }
+
+    .btn-emerald {
+      background: var(--emerald-success);
+      color: var(--text-light);
+      box-shadow: 0 4px 10px rgba(80, 200, 120, 0.3);
+    }
+
+    .preview-box {
+      background: rgba(13, 17, 23, 0.8);
+      border: 1px dashed var(--diamond-cyan);
+      border-radius: 12px;
+      padding: 14px;
+      margin-top: 10px;
+      display: none;
+    }
+
+    .preview-title {
+      color: var(--diamond-cyan);
+      font-size: 12px;
+      font-weight: 800;
+      margin-bottom: 8px;
+    }
+
+    .preview-item {
+      font-size: 12px;
+      color: var(--text-light);
+      margin-bottom: 4px;
+    }
+
+    .status-ok { color: var(--emerald-success); font-weight: bold; }
+    .status-warn { color: var(--gold-bright); font-weight: bold; }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h1>🏆 MIKE EDGE ADMIN</h1>
+    <p>Console de Saisie & Publication Mobile (V11.11)</p>
+  </div>
+
+  <div class="card">
+    <div class="card-title">
+      <span>1. SAISIE DES PRONOSTICS</span>
+      <span style="font-size: 10px; color: var(--diamond-cyan);">MOBILE READY</span>
+    </div>
+
+    <label class="label">Choisir le Secteur / Catégorie :</label>
+    <select id="categorySelect">
+      <option value="ELITE_MONDIALE">🏆 Top 10 Élite Mondial</option>
+      <option value="FRANCE">🇫🇷 Top 3 France (Ligue 1)</option>
+      <option value="ESPAGNE">🇪🇸 Top 3 Espagne (La Liga)</option>
+      <option value="ANGLETERRE">🇬🇧 Top 3 Angleterre (Premier League)</option>
+      <option value="EUROPE">🇪🇺 Top 5 Reste de l'Europe</option>
+      <option value="MONDE">🌍 Top 5 Restes du Monde (MLS, Brésil, etc.)</option>
+    </select>
+
+    <label class="label">Clé Admin Secrète (Samsung) :</label>
+    <input type="password" id="adminKeyInput" placeholder="Saisir votre ADMIN_KEY">
+
+    <label class="label">Coller la Fiche Telegram du Match :</label>
+    <textarea id="rawTextInput" placeholder="Collez votre texte ici..."></textarea>
+
+    <button class="btn btn-gold" id="verifyBtn" onclick="verifySheet()">🔍 VÉRIFIER LA FICHE (PRÉ-CONTRÔLE)</button>
+
+    <div id="previewBox" class="preview-box">
+      <div class="preview-title">RÉSULTAT DU CONTRÔLE :</div>
+      <div id="previewDetails"></div>
+    </div>
+
+    <button id="publishBtn" class="btn btn-emerald" style="display:none;" onclick="publishSector()">🚀 PUBLIER LE SECTEUR & ENVOYER NOTIFICATION</button>
+  </div>
+
+  <script>
+    function verifySheet() {
+      const text = document.getElementById('rawTextInput').value.trim();
+      const category = document.getElementById('categorySelect').value;
+      const previewBox = document.getElementById('previewBox');
+      const previewDetails = document.getElementById('previewDetails');
+      const publishBtn = document.getElementById('publishBtn');
+
+      if (!text) {
+        alert("Veuillez coller le texte de votre fiche Telegram.");
+        return;
+      }
+
+      const hasTeams = text.includes('vs') || text.includes('MATCH') || text.includes('VS');
+      const hasPDJ = text.includes('PARI DU JOUR') || text.includes('PDJ');
+
+      let html = '';
+      if (hasTeams && hasPDJ) {
+        html += `<p class="preview-item">✅ Structure Match : <span class="status-ok">VALIDE</span></p>`;
+        html += `<p class="preview-item">✅ Pari du Jour : <span class="status-ok">DÉTECTÉ</span></p>`;
+        html += `<p class="preview-item">📍 Secteur Cible : <span class="status-warn">${category}</span></p>`;
+        html += `<p class="preview-item" style="margin-top:8px; color: var(--emerald-success);">--> Fiche prête pour l'envoi vers la BDD PostgreSQL Supabase !</p>`;
+        
+        publishBtn.style.display = 'block';
+      } else {
+        html += `<p class="preview-item" style="color: var(--alert-red);">❌ Fiche incomplète ou format incorrect.</p>`;
+        publishBtn.style.display = 'none';
+      }
+
+      previewDetails.innerHTML = html;
+      previewBox.style.display = 'block';
+    }
+
+    async function publishSector() {
+      const text = document.getElementById('rawTextInput').value.trim();
+      const adminKey = document.getElementById('adminKeyInput').value.trim();
+      const category = document.getElementById('categorySelect').value;
+      const publishBtn = document.getElementById('publishBtn');
+
+      if (!adminKey) {
+        alert("Veuillez saisir votre Clé Admin Secrète.");
+        return;
+      }
+
+      publishBtn.disabled = true;
+      publishBtn.style.opacity = '0.5';
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+      try {
+        const response = await fetch('https://mike-edge-backend.onrender.com/api/v1/import', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-admin-key': adminKey
+          },
+          body: JSON.stringify({ raw_text: text, category_override: category }),
+          signal: controller.signal
+        });
+
+        if (!response.ok) {
+          throw new Error(`Erreur Serveur HTTP : ${response.status}`);
+        }
+
+        const result = await response.json();
+
+        if (result.success) {
+          alert(`🎉 SUCCÈS : Secteur ${category} publié et mis à jour en direct !`);
+          document.getElementById('rawTextInput').value = '';
+          document.getElementById('previewBox').style.display = 'none';
+          publishBtn.style.display = 'none';
+        } else {
+          alert(`❌ Erreur Publication : ${result.message || result.code}`);
+        }
+      } catch (err) {
+        if (err.name === 'AbortError') {
+          alert("⏱️ Timeout : Le réseau mobile est trop lent. Réessayez.");
+        } else {
+          alert(`❌ Erreur Réseau : ${err.message || 'Impossible de joindre le serveur Render.'}`);
+        }
+      } finally {
+        clearTimeout(timeoutId);
+        publishBtn.disabled = false;
+        publishBtn.style.opacity = '1';
+      }
+    }
+  </script>
+</body>
+</html>
