@@ -199,29 +199,22 @@
       const previewDetails = document.getElementById('previewDetails');
       const publishBtn = document.getElementById('publishBtn');
 
-      if (!text) {
-        alert("Veuillez coller le texte de votre fiche Telegram.");
+      if (!text || text.length < 20) {
+        alert("Veuillez coller le texte complet de votre fiche match.");
         return;
       }
 
-      const hasTeams = text.includes('vs') || text.includes('MATCH') || text.includes('VS');
-      const hasPDJ = text.includes('PARI DU JOUR') || text.includes('PDJ');
-
+      // ✅ DÉBLOCAGE UNIVERSEL : Suppression des filtres stricts qui bloquaient les fiches valides
       let html = '';
-      if (hasTeams && hasPDJ) {
-        html += `<p class="preview-item">✅ Structure Match : <span class="status-ok">VALIDE</span></p>`;
-        html += `<p class="preview-item">✅ Pari du Jour : <span class="status-ok">DÉTECTÉ</span></p>`;
-        html += `<p class="preview-item">📍 Secteur Cible : <span class="status-warn">${category}</span></p>`;
-        html += `<p class="preview-item" style="margin-top:8px; color: var(--emerald-success);">--> Fiche prête pour l'envoi vers la BDD PostgreSQL Supabase !</p>`;
-        
-        publishBtn.style.display = 'block';
-      } else {
-        html += `<p class="preview-item" style="color: var(--alert-red);">❌ Fiche incomplète ou format incorrect.</p>`;
-        publishBtn.style.display = 'none';
-      }
+      html += `<p class="preview-item">📄 Taille du texte : <span class="status-ok">${text.length} caractères</span></p>`;
+      html += `<p class="preview-item">📍 Secteur Cible : <span class="status-warn">${category}</span></p>`;
+      html += `<p class="preview-item" style="margin-top:8px; color: var(--emerald-success);">✅ Prêt pour l'envoi vers le Parser Gold Master !</p>`;
 
       previewDetails.innerHTML = html;
       previewBox.style.display = 'block';
+      
+      // Affiche le bouton vert de publication
+      publishBtn.style.display = 'block';
     }
 
     async function publishSector() {
