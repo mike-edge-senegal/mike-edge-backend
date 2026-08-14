@@ -3,272 +3,665 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>MIKE EDGE — COCKPIT ADMIN MOBILE</title>
+  <title>🎛️ COCKPIT ADMIN — MIKE EDGE V2.9.0</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
   <style>
     :root {
-      --bg-dark: #0D1117;
-      --card-surface: rgba(22, 27, 34, 0.95);
-      --gold-primary: #D4AF37;
+      --gold: #D4AF37;
       --gold-bright: #FFD700;
-      --diamond-cyan: #B9F2FF;
+      --bg-dark: #0D1117;
+      --bg-card: rgba(13, 17, 23, 0.92);
+      --bg-elevated: #161B22;
       --emerald-success: #50C878;
       --alert-red: #E0115F;
-      --text-light: #FFFFFF;
+      --text-primary: #F0F6FC;
       --text-muted: #8B949E;
-      --border-gold: rgba(212, 175, 55, 0.4);
+      --border-gold: rgba(212, 175, 55, 0.3);
     }
-
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      -webkit-tap-highlight-color: transparent;
-    }
-
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     body {
-      background-color: var(--bg-dark);
-      color: var(--text-light);
-      padding: 16px;
-      padding-bottom: 40px;
+      background: var(--bg-dark);
+      color: var(--text-primary);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      min-height: 100vh;
+      padding: 12px;
+      padding-bottom: 80px;
     }
-
-    .header {
-      text-align: center;
-      padding-bottom: 16px;
-      margin-bottom: 20px;
-      border-bottom: 1px solid var(--border-gold);
-    }
-
-    .header h1 {
-      color: var(--gold-primary);
-      font-size: 20px;
-      font-weight: 800;
-      letter-spacing: 1.5px;
-    }
-
-    .header p {
-      color: var(--text-muted);
-      font-size: 12px;
-      margin-top: 4px;
-    }
-
     .card {
-      background: var(--card-surface);
-      border: 1.5px solid var(--border-gold);
+      background: var(--bg-card);
+      border: 1px solid var(--border-gold);
       border-radius: 16px;
-      padding: 18px;
-      margin-bottom: 20px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+      padding: 16px;
+      margin-bottom: 16px;
+      backdrop-filter: blur(10px);
     }
-
     .card-title {
-      color: var(--gold-bright);
       font-size: 14px;
       font-weight: 800;
+      color: var(--gold);
+      letter-spacing: 0.5px;
       margin-bottom: 12px;
-      letter-spacing: 1px;
       display: flex;
-      align-items: center;
       justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border-gold);
+      padding-bottom: 8px;
     }
-
     .label {
-      font-size: 12px;
-      color: var(--text-light);
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
       margin-bottom: 6px;
       display: block;
-      font-weight: 600;
     }
-
-    select, textarea, input {
-      width: 100%;
-      background: rgba(13, 17, 23, 0.9);
-      border: 1px solid var(--border-gold);
-      border-radius: 10px;
-      color: var(--text-light);
-      padding: 12px;
-      font-size: 14px;
-      margin-bottom: 14px;
-      outline: none;
-    }
-
-    textarea {
-      height: 180px;
-      resize: vertical;
-      font-family: monospace;
-      font-size: 12px;
-      line-height: 1.4;
-    }
-
     .btn {
       width: 100%;
       padding: 14px;
-      border-radius: 12px;
       border: none;
+      border-radius: 12px;
       font-weight: 800;
       font-size: 14px;
-      letter-spacing: 1px;
-      cursor: pointer;
-      margin-bottom: 10px;
       text-transform: uppercase;
-    }
-
-    .btn-gold {
-      background: linear-gradient(180deg, #FFD700 0%, #D4AF37 100%);
-      color: var(--bg-dark);
-      box-shadow: 0 4px 10px rgba(212, 175, 55, 0.3);
-    }
-
-    .btn-emerald {
-      background: var(--emerald-success);
-      color: var(--text-light);
-      box-shadow: 0 4px 10px rgba(80, 200, 120, 0.3);
-    }
-
-    .preview-box {
-      background: rgba(13, 17, 23, 0.8);
-      border: 1px dashed var(--diamond-cyan);
-      border-radius: 12px;
-      padding: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
       margin-top: 10px;
-      display: none;
+      letter-spacing: 0.5px;
+      position: relative;
+      overflow: hidden;
     }
+    .btn:active { transform: scale(0.98); }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .btn-gold { background: linear-gradient(135deg, var(--gold), var(--gold-bright)); color: #000; }
+    .btn-emerald { background: var(--emerald-success); color: #000; }
+    .btn-blue { background: #0055FF; color: white; }
+    .btn-outline-red { background: transparent; border: 1px solid var(--alert-red); color: var(--alert-red); }
 
-    .preview-title {
-      color: var(--diamond-cyan);
+    input[type="text"], input[type="date"], input[type="password"], input[type="file"], select, textarea {
+      width: 100%;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-gold);
+      border-radius: 10px;
+      padding: 12px;
+      color: var(--text-primary);
+      font-size: 14px;
+      margin-bottom: 10px;
+    }
+    textarea { min-height: 160px; font-family: monospace; font-size: 12px; }
+
+    .status-ok { color: var(--emerald-success); font-weight: 700; }
+    .status-warn { color: var(--gold-bright); font-weight: 700; }
+    .status-err { color: var(--alert-red); font-weight: 700; }
+
+    /* ==========================================================
+       FILE D'ATTENTE MAGAZINE — GRILLE DE MINIATURES
+       ========================================================== */
+    .page-queue-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+    .page-thumb {
+      position: relative;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 2px solid var(--border-gold);
+      aspect-ratio: 9 / 16;
+      background: var(--bg-elevated);
+      cursor: pointer;
+      transition: transform 0.15s, border-color 0.15s;
+    }
+    .page-thumb:active {
+      transform: scale(0.96);
+      border-color: var(--gold-bright);
+    }
+    .page-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .page-thumb-num {
+      position: absolute;
+      top: 4px;
+      left: 4px;
+      background: rgba(0, 0, 0, 0.75);
+      color: var(--gold-bright);
+      font-size: 10px;
+      font-weight: 800;
+      padding: 2px 7px;
+      border-radius: 6px;
+      backdrop-filter: blur(4px);
+      border: 1px solid rgba(212, 175, 55, 0.3);
+    }
+    .page-thumb-remove {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      width: 24px;
+      height: 24px;
+      background: var(--alert-red);
+      color: white;
+      border: none;
+      border-radius: 50%;
       font-size: 12px;
       font-weight: 800;
-      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 2px 6px rgba(224, 17, 95, 0.4);
+      transition: transform 0.1s, background 0.15s;
+      z-index: 2;
+    }
+    .page-thumb-remove:active {
+      transform: scale(0.9);
+      background: #ff1a6b;
+    }
+    .page-thumb-empty {
+      border: 2px dashed var(--border-gold);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      font-size: 20px;
+      aspect-ratio: 9 / 16;
+      border-radius: 10px;
+      background: var(--bg-elevated);
+      cursor: pointer;
+    }
+    .page-thumb-empty:active {
+      border-color: var(--gold-bright);
+      color: var(--gold-bright);
     }
 
-    .preview-item {
-      font-size: 12px;
-      color: var(--text-light);
-      margin-bottom: 4px;
+    /* Overlay de chargement */
+    #loadingOverlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.85);
+      z-index: 9999;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
     }
-
-    .status-ok { color: var(--emerald-success); font-weight: bold; }
-    .status-warn { color: var(--gold-bright); font-weight: bold; }
+    .spinner {
+      width: 48px; height: 48px;
+      border: 4px solid var(--border-gold);
+      border-top-color: var(--gold-bright);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #loadingOverlay p { margin-top: 16px; color: var(--gold); font-weight: 700; font-size: 14px; }
   </style>
 </head>
 <body>
 
-  <div class="header">
-    <h1>🏆 MIKE EDGE ADMIN</h1>
-    <p>Console de Saisie & Publication Mobile (V11.11)</p>
+  <!-- OVERLAY CHARGEMENT -->
+  <div id="loadingOverlay">
+    <div class="spinner"></div>
+    <p id="loadingText">TRAITEMENT EN COURS...</p>
   </div>
 
+  <!-- HEADER -->
+  <div style="text-align: center; margin-bottom: 20px; padding-top: 10px;">
+    <h1 style="font-size: 20px; color: var(--gold); letter-spacing: 1px;">🎛️ COCKPIT ADMIN MIKE EDGE</h1>
+    <p style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">CONTRÔLE MOBILE (SAMSUNG A16) — V2.9.0 GOLD</p>
+    <p style="font-size: 10px; color: var(--text-muted); margin-top: 4px;">Backend: V11.11 | SQL: V2.8.1</p>
+  </div>
+
+  <!-- AUTHENTIFICATION GLOBALE -->
+  <div class="card" style="background: rgba(212,175,55,0.05);">
+    <label class="label">🔐 Clé Admin Secrète :</label>
+    <input type="password" id="adminKeyInput" placeholder="Saisir la clé secrète...">
+  </div>
+
+  <!-- ========================================================== -->
+  <!-- 📦 BLOC 1 : SAISIE & PRÉ-VALIDATION DES PRONOSTICS          -->
+  <!-- ========================================================== -->
   <div class="card">
     <div class="card-title">
       <span>1. SAISIE DES PRONOSTICS</span>
-      <span style="font-size: 10px; color: var(--diamond-cyan);">MOBILE READY</span>
+      <span style="font-size: 10px; color: var(--emerald-success);">ACTIF</span>
     </div>
 
-    <label class="label">Choisir le Secteur / Catégorie :</label>
+    <label class="label">Secteur / Catégorie :</label>
     <select id="categorySelect">
-      <option value="ELITE_MONDIALE">🏆 Top 10 Élite Mondial</option>
-      <option value="FRANCE">🇫🇷 Top 3 France (Ligue 1)</option>
-      <option value="ESPAGNE">🇪🇸 Top 3 Espagne (La Liga)</option>
-      <option value="ANGLETERRE">🇬🇧 Top 3 Angleterre (Premier League)</option>
-      <option value="EUROPE">🇪🇺 Top 5 Reste de l'Europe</option>
-      <option value="MONDE">🌍 Top 5 Restes du Monde (MLS, Brésil, etc.)</option>
+      <option value="ELITE">🌍 Élite Mondiale / LDC</option>
+      <option value="FRANCE">🇫🇷 France (Ligue 1)</option>
+      <option value="ESPAGNE">🇪🇸 Espagne (La Liga)</option>
+      <option value="ANGLETERRE">🏴󠁧󠁢󠁥󠁮󠁧󠁿 Angleterre (Premier League)</option>
+      <option value="EUROPE">🇪🇺 Autres Championnats Europe</option>
+      <option value="MONDE">🌎 Reste du Monde (CSL, Amériques)</option>
     </select>
 
-    <label class="label">Clé Admin Secrète (Samsung) :</label>
-    <input type="password" id="adminKeyInput" placeholder="Saisir votre ADMIN_KEY">
+    <label class="label">Fiche Telegram Brute :</label>
+    <textarea id="rawTextInput" placeholder="Coller la fiche ici..."></textarea>
 
-    <label class="label">Coller la Fiche Telegram du Match :</label>
-    <textarea id="rawTextInput" placeholder="Collez votre texte ici..."></textarea>
+    <button class="btn btn-gold" onclick="verifySheet()">🔍 VÉRIFIER LA FICHE (PRÉ-CONTRÔLE)</button>
 
-    <button class="btn btn-gold" id="verifyBtn" onclick="verifySheet()">🔍 VÉRIFIER LA FICHE (PRÉ-CONTRÔLE)</button>
+    <div id="previewBox" style="display: none; background: rgba(0,0,0,0.5); border-radius: 10px; padding: 12px; margin-top: 10px; border: 1px solid rgba(255,255,255,0.1);">
+      <div id="previewDetails" style="font-size: 12px; line-height: 1.5;"></div>
+      <button class="btn btn-emerald" id="publishSheetBtn" style="display: none; margin-top: 12px;" onclick="publishSector()">🚀 PUBLIER LE SECTEUR & ENVOYER</button>
+    </div>
+  </div>
 
-    <div id="previewBox" class="preview-box">
-      <div class="preview-title">RÉSULTAT DU CONTRÔLE :</div>
-      <div id="previewDetails"></div>
+  <!-- ========================================================== -->
+  <!-- 📦 BLOC 2 : KIOSQUE MAGAZINE HD (File d'attente visuelle)    -->
+  <!-- ========================================================== -->
+  <div class="card">
+    <div class="card-title">
+      <span>2. KIOSQUE MAGAZINE HD</span>
+      <span style="font-size: 10px; color: var(--gold-bright);">ALBUMS PHOTOS</span>
     </div>
 
-    <button id="publishBtn" class="btn btn-emerald" style="display:none;" onclick="publishSector()">🚀 PUBLIER LE SECTEUR & ENVOYER NOTIFICATION</button>
+    <label class="label">Titre de l'Album :</label>
+    <input type="text" id="magTitle" placeholder="Ex: Édition Spéciale Semaine 33">
+
+    <label class="label">Date d'Édition :</label>
+    <input type="date" id="magDate">
+
+    <label class="label">Couverture (9:16) :</label>
+    <input type="file" id="magCover" accept="image/*" style="padding: 8px; color: var(--text-muted);">
+
+    <label class="label">Pages Intérieures HD :</label>
+    <input type="file" id="magPages" accept="image/*" multiple style="padding: 8px; color: var(--text-muted);" onchange="handlePagesSelect(this)">
+
+    <!-- FILE D'ATTENTE VISUELLE DES PAGES -->
+    <div id="pageQueueContainer" style="display: none; margin-bottom: 12px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <span class="label" style="margin-bottom: 0;">📑 File d'attente :</span>
+        <span id="pageQueueCount" style="font-size: 11px; color: var(--gold); font-weight: 700;">0 page(s)</span>
+      </div>
+      <div id="pageQueueGrid" class="page-queue-grid"></div>
+      <button class="btn btn-outline-red" style="margin-top: 8px; padding: 10px; font-size: 12px;" onclick="clearPageQueue()">🗑 VIDER TOUTE LA FILE</button>
+    </div>
+
+    <div style="display: flex; gap: 8px;">
+      <button class="btn btn-gold" style="flex: 2;" onclick="saveMagazine()">💾 ENREGISTRER L'ALBUM</button>
+      <button class="btn" style="flex: 1; background: var(--alert-red); color: white;" onclick="deleteMagazine()">🗑 SUPPRIMER</button>
+    </div>
+  </div>
+
+  <!-- ========================================================== -->
+  <!-- 📦 BLOC 3 : INFO FLASH HD (Pop-up Plein Écran)              -->
+  <!-- ========================================================== -->
+  <div class="card">
+    <div class="card-title">
+      <span>3. INFO FLASH HD (POP-UP)</span>
+      <span style="font-size: 10px; color: var(--gold-bright);">EN DIRECT</span>
+    </div>
+
+    <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(13, 17, 23, 0.8); padding: 12px; border-radius: 10px; border: 1px solid var(--border-gold); margin-bottom: 12px;">
+      <div>
+        <span class="label" style="margin-bottom: 2px;">STATUT CHEZ LES ABONNÉS :</span>
+        <span id="flashStatusText" style="font-size: 11px; font-weight: 800; color: var(--emerald-success);">🟢 ACTIVÉ (VISIBLE)</span>
+      </div>
+      <button id="toggleFlashBtn" class="btn btn-emerald" style="width: auto; padding: 8px 14px; margin: 0; font-size: 12px;" onclick="toggleFlashStatus()">DÉSACTIVER</button>
+    </div>
+
+    <label class="label">Nouvelle Photo HD (9:16) :</label>
+    <input type="file" id="flashImageInput" accept="image/*" style="padding: 8px; color: var(--text-muted);">
+
+    <button class="btn btn-gold" onclick="uploadFlashInfo()">📤 PUBLIER LA NOUVELLE INFO FLASH</button>
+    <button class="btn btn-blue" onclick="sendFlashNotification()">🔔 NOTIFICATION PUSH URGENTE</button>
   </div>
 
   <script>
+    // ==================== CONFIGURATION ====================
+    const SUPABASE_URL = 'https://votre-projet.supabase.co';
+    const SUPABASE_ANON_KEY = 'votre-cle-anon-publique';
+    const API_BASE = 'https://votre-api.onrender.com/api/v1';
+
+    const { createClient } = supabase;
+    const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    let isFlashActive = true;
+    let selectedPages = []; 
+
+    // ==================== UTILITAIRES ====================
+    function setLoading(isLoading, text) {
+      const overlay = document.getElementById('loadingOverlay');
+      document.getElementById('loadingText').innerText = text || 'TRAITEMENT EN COURS...';
+      overlay.style.display = isLoading ? 'flex' : 'none';
+    }
+
+    function getAdminKey() {
+      const key = document.getElementById('adminKeyInput').value.trim();
+      if (!key) throw new Error("Clé Admin requise.");
+      return key;
+    }
+
+    // ==================== BLOC 1 : PRONOSTICS ====================
     function verifySheet() {
       const text = document.getElementById('rawTextInput').value.trim();
-      const category = document.getElementById('categorySelect').value;
       const previewBox = document.getElementById('previewBox');
       const previewDetails = document.getElementById('previewDetails');
-      const publishBtn = document.getElementById('publishBtn');
+      const publishBtn = document.getElementById('publishSheetBtn');
 
-      if (!text || text.length < 20) {
-        alert("Veuillez coller le texte complet de votre fiche match.");
-        return;
-      }
+      if (!text) { alert("Veuillez coller une fiche."); return; }
 
-      // ✅ DÉBLOCAGE UNIVERSEL : Suppression des filtres stricts qui bloquaient les fiches valides
-      let html = '';
-      html += `<p class="preview-item">📄 Taille du texte : <span class="status-ok">${text.length} caractères</span></p>`;
-      html += `<p class="preview-item">📍 Secteur Cible : <span class="status-warn">${category}</span></p>`;
-      html += `<p class="preview-item" style="margin-top:8px; color: var(--emerald-success);">✅ Prêt pour l'envoi vers le Parser Gold Master !</p>`;
-
-      previewDetails.innerHTML = html;
       previewBox.style.display = 'block';
-      
-      // Affiche le bouton vert de publication
-      publishBtn.style.display = 'block';
+      const hasTeams = /vs|contre|match/i.test(text);
+
+      if (hasTeams) {
+        previewDetails.innerHTML = `
+          <p>✅ Structure Match : <span class="status-ok">VALIDE</span></p>
+          <p>📍 Secteur Cible : <span class="status-warn">${document.getElementById('categorySelect').value}</span></p>
+          <p style="color: var(--text-muted); margin-top: 6px;">Le Parser V11.14 extraira la catégorie depuis le texte brut.</p>
+        `;
+        publishBtn.style.display = 'block';
+      } else {
+        previewDetails.innerHTML = `<p class="status-err">❌ Format de fiche non reconnu (absence de "vs" ou "match").</p>`;
+        publishBtn.style.display = 'none';
+      }
     }
 
     async function publishSector() {
       const text = document.getElementById('rawTextInput').value.trim();
-      const adminKey = document.getElementById('adminKeyInput').value.trim();
-      const category = document.getElementById('categorySelect').value;
-      const publishBtn = document.getElementById('publishBtn');
+      const adminKey = getAdminKey();
 
-      if (!adminKey) {
-        alert("Veuillez saisir votre Clé Admin Secrète.");
-        return;
-      }
-
-      publishBtn.disabled = true;
-      publishBtn.style.opacity = '0.5';
-
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000);
-
+      setLoading(true, 'IMPORT VERS SUPABASE...');
       try {
-        const response = await fetch('https://mike-edge-backend.onrender.com/api/v1/import', {
+        const response = await fetch(`${API_BASE}/import`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'x-admin-key': adminKey
           },
-          body: JSON.stringify({ raw_text: text, category_override: category }),
-          signal: controller.signal
+          body: JSON.stringify({ raw_text: text, user_id: 1 })
         });
-
-        if (!response.ok) {
-          throw new Error(`Erreur Serveur HTTP : ${response.status}`);
-        }
-
         const result = await response.json();
 
-        if (result.success) {
-          alert(`🎉 SUCCÈS : Secteur ${category} publié et mis à jour en direct !`);
+        if (response.ok && result.success) {
+          alert("🚀 SECTEUR PUBLIÉ AVEC SUCCÈS !\nPublication ID: " + result.data.publication_id);
           document.getElementById('rawTextInput').value = '';
           document.getElementById('previewBox').style.display = 'none';
-          publishBtn.style.display = 'none';
         } else {
-          alert(`❌ Erreur Publication : ${result.message || result.code}`);
+          alert("❌ Erreur Backend : " + (result.message || JSON.stringify(result.errors)));
         }
       } catch (err) {
-        if (err.name === 'AbortError') {
-          alert("⏱️ Timeout : Le réseau mobile est trop lent. Réessayez.");
-        } else {
-          alert(`❌ Erreur Réseau : ${err.message || 'Impossible de joindre le serveur Render.'}`);
-        }
+        alert("❌ Erreur réseau : " + err.message);
       } finally {
-        clearTimeout(timeoutId);
-        publishBtn.disabled = false;
-        publishBtn.style.opacity = '1';
+        setLoading(false);
+      }
+    }
+
+    // ==================== BLOC 2 : MAGAZINE ====================
+    function handlePagesSelect(input) {
+      const files = Array.from(input.files);
+      if (files.length === 0) return;
+
+      files.forEach(file => {
+        const exists = selectedPages.some(p => p.name === file.name && p.size === file.size);
+        if (!exists) selectedPages.push(file);
+      });
+
+      renderPageQueue();
+      input.value = '';
+    }
+
+    function renderPageQueue() {
+      const container = document.getElementById('pageQueueContainer');
+      const grid = document.getElementById('pageQueueGrid');
+      const countLabel = document.getElementById('pageQueueCount');
+
+      if (selectedPages.length === 0) {
+        container.style.display = 'none';
+        grid.innerHTML = '';
+        countLabel.innerText = '0 page(s)';
+        return;
+      }
+
+      container.style.display = 'block';
+      countLabel.innerText = `${selectedPages.length} page(s)`;
+
+      grid.innerHTML = '';
+      selectedPages.forEach((file, index) => {
+        const thumb = document.createElement('div');
+        thumb.className = 'page-thumb';
+
+        const img = document.createElement('img');
+        img.src = URL.createObjectURL(file);
+        img.alt = file.name;
+        img.onload = () => URL.revokeObjectURL(img.src);
+
+        const numBadge = document.createElement('div');
+        numBadge.className = 'page-thumb-num';
+        numBadge.innerText = `P.${index + 1}`;
+
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'page-thumb-remove';
+        removeBtn.innerHTML = '✕';
+        removeBtn.title = 'Retirer cette page';
+        removeBtn.onclick = (e) => {
+          e.stopPropagation();
+          removePage(index);
+        };
+
+        thumb.appendChild(img);
+        thumb.appendChild(numBadge);
+        thumb.appendChild(removeBtn);
+        grid.appendChild(thumb);
+      });
+
+      const addSlot = document.createElement('div');
+      addSlot.className = 'page-thumb-empty';
+      addSlot.innerHTML = '+';
+      addSlot.onclick = () => document.getElementById('magPages').click();
+      grid.appendChild(addSlot);
+    }
+
+    function removePage(index) {
+      selectedPages.splice(index, 1);
+      renderPageQueue();
+    }
+
+    function clearPageQueue() {
+      if (selectedPages.length === 0) return;
+      if (!confirm(`🗑 Retirer les ${selectedPages.length} pages de la file ?`)) return;
+      selectedPages = [];
+      renderPageQueue();
+    }
+
+    async function saveMagazine() {
+      const title = document.getElementById('magTitle').value.trim();
+      const date = document.getElementById('magDate').value;
+      const coverFile = document.getElementById('magCover').files[0];
+      const adminKey = getAdminKey();
+
+      if (!title || !date) { alert("Titre et date requis."); return; }
+      if (selectedPages.length === 0) { alert("Ajoutez au moins une page intérieure."); return; }
+
+      setLoading(true, `UPLOAD COUVERTURE + ${selectedPages.length} PAGES...`);
+      try {
+        let coverUrl = '';
+        if (coverFile) {
+          const fileName = `covers/${Date.now()}_${coverFile.name.replace(/\s+/g, '_')}`;
+          const { error: upErr } = await supabaseClient.storage.from('magazines').upload(fileName, coverFile);
+          if (upErr) throw upErr;
+          const { data: urlData } = supabaseClient.storage.from('magazines').getPublicUrl(fileName);
+          coverUrl = urlData.publicUrl;
+        }
+
+        const { data: mag, error: magErr } = await supabaseClient
+          .from('magazines')
+          .insert([{ title, edition_date: date, cover_url: coverUrl, is_active: true }])
+          .select('id')
+          .single();
+
+        if (magErr) throw magErr;
+        const magazineId = mag.id;
+
+        const pageInserts = [];
+        for (let i = 0; i < selectedPages.length; i++) {
+          const file = selectedPages[i];
+          const pageFileName = `pages/${magazineId}/${Date.now()}_p${i+1}_${file.name.replace(/\s+/g, '_')}`;
+          const { error: pUpErr } = await supabaseClient.storage.from('magazines').upload(pageFileName, file);
+          if (pUpErr) throw pUpErr;
+          const { data: pUrlData } = supabaseClient.storage.from('magazines').getPublicUrl(pageFileName);
+          pageInserts.push({
+            magazine_id: magazineId,
+            page_number: i + 1,
+            image_url: pUrlData.publicUrl
+          });
+        }
+
+        const { error: pagesErr } = await supabaseClient.from('magazine_pages').insert(pageInserts);
+        if (pagesErr) throw pagesErr;
+
+        alert(`💾 Album enregistré !\nID: ${magazineId}\nPages: ${selectedPages.length}`);
+
+        document.getElementById('magTitle').value = '';
+        document.getElementById('magDate').value = '';
+        document.getElementById('magCover').value = '';
+        selectedPages = [];
+        renderPageQueue();
+      } catch (err) {
+        alert("❌ Erreur Magazine : " + err.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    async function deleteMagazine() {
+      const title = document.getElementById('magTitle').value.trim();
+      const adminKey = getAdminKey();
+
+      if (!title) { alert("Indiquez le titre exact de l'album à supprimer."); return; }
+      if (!confirm(`🗑 SUPPRIMER DÉFINITIVEMENT l'album "${title}" et toutes ses pages ?`)) return;
+
+      setLoading(true, 'SUPPRESSION EN CASCADE...');
+      try {
+        const { data: mag, error: findErr } = await supabaseClient
+          .from('magazines').select('id').eq('title', title).single();
+
+        if (findErr || !mag) throw new Error("Album non trouvé.");
+
+        await supabaseClient.from('magazine_pages').delete().eq('magazine_id', mag.id);
+        const { error: delErr } = await supabaseClient.from('magazines').delete().eq('id', mag.id);
+        if (delErr) throw delErr;
+
+        document.getElementById('magTitle').value = '';
+        alert("🗑️ Album et pages supprimés.");
+      } catch (err) {
+        alert("❌ Erreur suppression : " + err.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    // ==================== BLOC 3 : FLASH INFO ====================
+    async function toggleFlashStatus() {
+      const adminKey = getAdminKey();
+      isFlashActive = !isFlashActive;
+
+      const toggleBtn = document.getElementById('toggleFlashBtn');
+      const statusText = document.getElementById('flashStatusText');
+
+      setLoading(true, 'MISE À JOUR STATUT FLASH...');
+      try {
+        const { data: lastFlash } = await supabaseClient
+          .from('flash_infos')
+          .select('id')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (lastFlash) {
+          await supabaseClient
+            .from('flash_infos')
+            .update({ is_active: isFlashActive })
+            .eq('id', lastFlash.id);
+        }
+
+        if (isFlashActive) {
+          statusText.innerHTML = "🟢 ACTIVÉ (VISIBLE)";
+          statusText.style.color = "var(--emerald-success)";
+          toggleBtn.innerText = "DÉSACTIVER";
+          toggleBtn.className = "btn btn-emerald";
+          toggleBtn.style.background = "";
+          toggleBtn.style.color = "#000";
+        } else {
+          statusText.innerHTML = "⚪ DÉSACTIVÉ (MASQUÉ)";
+          statusText.style.color = "var(--text-muted)";
+          toggleBtn.innerText = "ACTIVER";
+          toggleBtn.className = "btn";
+          toggleBtn.style.background = "var(--text-muted)";
+          toggleBtn.style.color = "white";
+        }
+      } catch (err) {
+        alert("❌ Erreur statut : " + err.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    async function uploadFlashInfo() {
+      const file = document.getElementById('flashImageInput').files[0];
+      const adminKey = getAdminKey();
+
+      if (!file) { alert("Sélectionnez une photo HD 9:16."); return; }
+
+      setLoading(true, 'PUBLICATION INFO FLASH...');
+      try {
+        const fileName = `flash/${Date.now()}_${file.name.replace(/\s+/g, '_')}`;
+        const { error: upErr } = await supabaseClient.storage.from('magazines').upload(fileName, file);
+        if (upErr) throw upErr;
+        const { data: urlData } = supabaseClient.storage.from('magazines').getPublicUrl(fileName);
+
+        const { error: dbErr } = await supabaseClient.from('flash_infos').insert([{
+          title: "Info Flash du Jour",
+          message: "Flash direct admin",
+          image_url: urlData.publicUrl,
+          is_active: isFlashActive
+        }]);
+
+        if (dbErr) throw dbErr;
+        alert("⚡ Info Flash HD publiée et persistée en base !");
+        document.getElementById('flashImageInput').value = '';
+      } catch (err) {
+        alert("❌ Erreur Flash : " + err.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    async function sendFlashNotification() {
+      const adminKey = getAdminKey();
+      setLoading(true, 'ENVOI NOTIFICATION PUSH...');
+
+      try {
+        const response =abolished = await fetch(`${API_BASE}/notifications/push`, {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'x-admin-key': adminKey 
+          },
+          body: JSON.stringify({ 
+            title: "MIKE EDGE - ALERTE FLASH", 
+            body: "Nouvelle information en direct !", 
+            target: "all" 
+          })
+        });
+        
+        if (response.status === 404) {
+          alert("⚠️ Route Push non encore déployée sur le serveur.\nL'info flash est en ligne, mais la notification push nécessite la mise à jour de server.js.");
+          return;
+        }
+        
+        const result = await response.json();
+        if (response.ok && result.success) {
+          alert("📲 Notification Push envoyée à tous les abonnés !");
+        } else {
+          alert("❌ Erreur Push : " + (result.message || 'Refusé'));
+        }
+      } catch (err) {
+        alert("❌ Erreur réseau Push : " + err.message);
+      } finally {
+        setLoading(false);
       }
     }
   </script>
