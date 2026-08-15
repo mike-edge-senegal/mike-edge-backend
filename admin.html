@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>🎛️ COCKPIT ADMIN — MIKE EDGE V2.9.0</title>
+  <title>🎛️ COCKPIT ADMIN — MIKE EDGE V3.0.1</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
   <style>
@@ -15,6 +15,7 @@
       --bg-elevated: #161B22;
       --emerald-success: #50C878;
       --alert-red: #E0115F;
+      --diamond-cyan: #00E5FF;
       --text-primary: #F0F6FC;
       --text-muted: #8B949E;
       --border-gold: rgba(212, 175, 55, 0.3);
@@ -94,9 +95,6 @@
     .status-warn { color: var(--gold-bright); font-weight: 700; }
     .status-err { color: var(--alert-red); font-weight: 700; }
 
-    /* ==========================================================
-       FILE D'ATTENTE MAGAZINE — GRILLE DE MINIATURES
-       ========================================================== */
     .page-queue-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -151,13 +149,7 @@
       align-items: center;
       justify-content: center;
       cursor: pointer;
-      box-shadow: 0 2px 6px rgba(224, 17, 95, 0.4);
-      transition: transform 0.1s, background 0.15s;
       z-index: 2;
-    }
-    .page-thumb-remove:active {
-      transform: scale(0.9);
-      background: #ff1a6b;
     }
     .page-thumb-empty {
       border: 2px dashed var(--border-gold);
@@ -176,7 +168,22 @@
       color: var(--gold-bright);
     }
 
-    /* Overlay de chargement */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      font-size: 12px;
+    }
+    th, td {
+      border: 1px solid var(--border-gold);
+      padding: 10px;
+      text-align: left;
+    }
+    th {
+      background-color: rgba(212, 175, 55, 0.1);
+      color: var(--gold);
+    }
+
     #loadingOverlay {
       display: none;
       position: fixed;
@@ -200,28 +207,22 @@
 </head>
 <body>
 
-  <!-- OVERLAY CHARGEMENT -->
   <div id="loadingOverlay">
     <div class="spinner"></div>
     <p id="loadingText">TRAITEMENT EN COURS...</p>
   </div>
 
-  <!-- HEADER -->
   <div style="text-align: center; margin-bottom: 20px; padding-top: 10px;">
     <h1 style="font-size: 20px; color: var(--gold); letter-spacing: 1px;">🎛️ COCKPIT ADMIN MIKE EDGE</h1>
-    <p style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">CONTRÔLE MOBILE (SAMSUNG A16) — V2.9.0 GOLD</p>
+    <p style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">CONTRÔLE MOBILE (SAMSUNG A16) — V3.0.1 SCELLÉ</p>
     <p style="font-size: 10px; color: var(--text-muted); margin-top: 4px;">Backend: V11.11 | SQL: V2.8.1</p>
   </div>
 
-  <!-- AUTHENTIFICATION GLOBALE -->
   <div class="card" style="background: rgba(212,175,55,0.05);">
     <label class="label">🔐 Clé Admin Secrète :</label>
     <input type="password" id="adminKeyInput" placeholder="Saisir la clé secrète...">
   </div>
 
-  <!-- ========================================================== -->
-  <!-- 📦 BLOC 1 : SAISIE & PRÉ-VALIDATION DES PRONOSTICS          -->
-  <!-- ========================================================== -->
   <div class="card">
     <div class="card-title">
       <span>1. SAISIE DES PRONOSTICS</span>
@@ -230,7 +231,7 @@
 
     <label class="label">Secteur / Catégorie :</label>
     <select id="categorySelect">
-      <option value="ELITE">🌍 Élite Mondiale / LDC</option>
+      <option value="ELITE_MONDIALE">🏆 Élite Mondiale / LDC</option>
       <option value="FRANCE">🇫🇷 France (Ligue 1)</option>
       <option value="ESPAGNE">🇪🇸 Espagne (La Liga)</option>
       <option value="ANGLETERRE">🏴󠁧󠁢󠁥󠁮󠁧󠁿 Angleterre (Premier League)</option>
@@ -249,9 +250,6 @@
     </div>
   </div>
 
-  <!-- ========================================================== -->
-  <!-- 📦 BLOC 2 : KIOSQUE MAGAZINE HD (File d'attente visuelle)    -->
-  <!-- ========================================================== -->
   <div class="card">
     <div class="card-title">
       <span>2. KIOSQUE MAGAZINE HD</span>
@@ -270,7 +268,6 @@
     <label class="label">Pages Intérieures HD :</label>
     <input type="file" id="magPages" accept="image/*" multiple style="padding: 8px; color: var(--text-muted);" onchange="handlePagesSelect(this)">
 
-    <!-- FILE D'ATTENTE VISUELLE DES PAGES -->
     <div id="pageQueueContainer" style="display: none; margin-bottom: 12px;">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
         <span class="label" style="margin-bottom: 0;">📑 File d'attente :</span>
@@ -286,9 +283,6 @@
     </div>
   </div>
 
-  <!-- ========================================================== -->
-  <!-- 📦 BLOC 3 : INFO FLASH HD (Pop-up Plein Écran)              -->
-  <!-- ========================================================== -->
   <div class="card">
     <div class="card-title">
       <span>3. INFO FLASH HD (POP-UP)</span>
@@ -310,18 +304,51 @@
     <button class="btn btn-blue" onclick="sendFlashNotification()">🔔 NOTIFICATION PUSH URGENTE</button>
   </div>
 
+  <div class="card">
+    <div class="card-title">
+      <span>4. TICKET DE SESSION HD (ÉCRAN 6)</span>
+      <span style="font-size: 10px; color: var(--gold-bright);">3 EN 1</span>
+    </div>
+
+    <label class="label">Sélectionner l'image HD 9:16 des 3 tickets :</label>
+    <input type="file" id="sessionTicketInput" accept="image/*" style="padding: 8px; color: var(--text-muted);">
+
+    <button class="btn btn-gold" onclick="uploadSessionTicket()">💾 PUBLIER L'AFFICHE DES 3 TICKETS HD</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title">
+      <span>5. ANALYSES & RAPPORTS DE PARRAINAGE VRP</span>
+      <span style="font-size: 10px; color: var(--diamond-cyan);">EN DIRECT</span>
+    </div>
+
+    <button class="btn btn-gold" onclick="loadVrpPerformance()">🔄 ACTUALISER LES STATISTIQUES DES VRPS</button>
+
+    <div id="vrpTableContainer" style="display: none; margin-top: 14px; overflow-x: auto;">
+      <table id="vrpTable">
+        <thead>
+          <tr>
+            <th>Code Agent</th>
+            <th>Zone</th>
+            <th>Abonnés Actifs</th>
+            <th>Cumul Temps Offert</th>
+          </tr>
+        </thead>
+        <tbody id="vrpTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
   <script>
-    // ==================== CONFIGURATION ====================
-    const SUPABASE_URL = 'https://votre-projet.supabase.co';
-    const SUPABASE_ANON_KEY = 'votre-cle-anon-publique';
-    const API_BASE = 'https://votre-api.onrender.com/api/v1';
+    const SUPABASE_URL = 'https://yntigkzalrqnjfjwxgzd.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_fDvGSVpaOFWV59StpXg-YQ_Vm3Vw1pt';
+    const API_BASE = 'https://mike-edge-backend.onrender.com/api/v1';
 
     const { createClient } = supabase;
     const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     let isFlashActive = true;
     let selectedPages = []; 
 
-    // ==================== UTILITAIRES ====================
     function setLoading(isLoading, text) {
       const overlay = document.getElementById('loadingOverlay');
       document.getElementById('loadingText').innerText = text || 'TRAITEMENT EN COURS...';
@@ -334,7 +361,16 @@
       return key;
     }
 
-    // ==================== BLOC 1 : PRONOSTICS ====================
+    function withAdminKey(callback) {
+      try {
+        const key = getAdminKey();
+        return callback(key);
+      } catch (err) {
+        alert("❌ " + err.message);
+        setLoading(false);
+      }
+    }
+
     function verifySheet() {
       const text = document.getElementById('rawTextInput').value.trim();
       const previewBox = document.getElementById('previewBox');
@@ -360,36 +396,35 @@
     }
 
     async function publishSector() {
-      const text = document.getElementById('rawTextInput').value.trim();
-      const adminKey = getAdminKey();
+      withAdminKey(async (adminKey) => {
+        const text = document.getElementById('rawTextInput').value.trim();
+        setLoading(true, 'IMPORT VERS SUPABASE...');
+        try {
+          const response = await fetch(`${API_BASE}/import`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-admin-key': adminKey
+            },
+            body: JSON.stringify({ raw_text: text, user_id: 1 })
+          });
+          const result = await response.json();
 
-      setLoading(true, 'IMPORT VERS SUPABASE...');
-      try {
-        const response = await fetch(`${API_BASE}/import`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-admin-key': adminKey
-          },
-          body: JSON.stringify({ raw_text: text, user_id: 1 })
-        });
-        const result = await response.json();
-
-        if (response.ok && result.success) {
-          alert("🚀 SECTEUR PUBLIÉ AVEC SUCCÈS !\nPublication ID: " + result.data.publication_id);
-          document.getElementById('rawTextInput').value = '';
-          document.getElementById('previewBox').style.display = 'none';
-        } else {
-          alert("❌ Erreur Backend : " + (result.message || JSON.stringify(result.errors)));
+          if (response.ok && result.success) {
+            alert("🚀 SECTEUR PUBLIÉ AVEC SUCCÈS !\nPublication ID: " + result.data.publication_id);
+            document.getElementById('rawTextInput').value = '';
+            document.getElementById('previewBox').style.display = 'none';
+          } else {
+            alert("❌ Erreur Backend : " + (result.message || JSON.stringify(result.errors)));
+          }
+        } catch (err) {
+          alert("❌ Erreur réseau : " + err.message);
+        } finally {
+          setLoading(false);
         }
-      } catch (err) {
-        alert("❌ Erreur réseau : " + err.message);
-      } finally {
-        setLoading(false);
-      }
+      });
     }
 
-    // ==================== BLOC 2 : MAGAZINE ====================
     function handlePagesSelect(input) {
       const files = Array.from(input.files);
       if (files.length === 0) return;
@@ -424,9 +459,10 @@
         thumb.className = 'page-thumb';
 
         const img = document.createElement('img');
-        img.src = URL.createObjectURL(file);
+        const objectUrl = URL.createObjectURL(file);
+        img.src = objectUrl;
         img.alt = file.name;
-        img.onload = () => URL.revokeObjectURL(img.src);
+        img.onload = () => { setTimeout(() => URL.revokeObjectURL(objectUrl), 100); };
 
         const numBadge = document.createElement('div');
         numBadge.className = 'page-thumb-num';
@@ -467,202 +503,301 @@
     }
 
     async function saveMagazine() {
-      const title = document.getElementById('magTitle').value.trim();
-      const date = document.getElementById('magDate').value;
-      const coverFile = document.getElementById('magCover').files[0];
-      const adminKey = getAdminKey();
+      withAdminKey(async (adminKey) => {
+        const title = document.getElementById('magTitle').value.trim();
+        const date = document.getElementById('magDate').value;
+        const coverFile = document.getElementById('magCover').files[0];
 
-      if (!title || !date) { alert("Titre et date requis."); return; }
-      if (selectedPages.length === 0) { alert("Ajoutez au moins une page intérieure."); return; }
+        if (!title || !date) { alert("Titre et date requis."); return; }
+        if (selectedPages.length === 0) { alert("Ajoutez au moins une page intérieure."); return; }
 
-      setLoading(true, `UPLOAD COUVERTURE + ${selectedPages.length} PAGES...`);
-      try {
-        let coverUrl = '';
-        if (coverFile) {
-          const fileName = `covers/${Date.now()}_${coverFile.name.replace(/\s+/g, '_')}`;
-          const { error: upErr } = await supabaseClient.storage.from('magazines').upload(fileName, coverFile);
-          if (upErr) throw upErr;
-          const { data: urlData } = supabaseClient.storage.from('magazines').getPublicUrl(fileName);
-          coverUrl = urlData.publicUrl;
+        setLoading(true, `UPLOAD COUVERTURE + ${selectedPages.length} PAGES...`);
+        try {
+          let coverUrl = '';
+          if (coverFile) {
+            const fileName = `covers/${Date.now()}_${coverFile.name.replace(/\s+/g, '_')}`;
+            const { error: upErr } = await supabaseClient.storage.from('magazines').upload(fileName, coverFile);
+            if (upErr) throw upErr;
+            const { data: urlData } = supabaseClient.storage.from('magazines').getPublicUrl(fileName);
+            coverUrl = urlData.publicUrl;
+          }
+
+          const { data: mag, error: magErr } = await supabaseClient
+            .from('magazines')
+            .insert([{ title, edition_date: date, cover_url: coverUrl, is_active: true }])
+            .select('id')
+            .single();
+
+          if (magErr) throw magErr;
+          const magazineId = mag.id;
+
+          const pageInserts = [];
+          for (let i = 0; i < selectedPages.length; i++) {
+            const file = selectedPages[i];
+            const pageFileName = `pages/${magazineId}/${Date.now()}_p${i+1}_${file.name.replace(/\s+/g, '_')}`;
+            const { error: pUpErr } = await supabaseClient.storage.from('magazines').upload(pageFileName, file);
+            if (pUpErr) throw pUpErr;
+            const { data: pUrlData } = supabaseClient.storage.from('magazines').getPublicUrl(pageFileName);
+            pageInserts.push({
+              magazine_id: magazineId,
+              page_number: i + 1,
+              image_url: pUrlData.publicUrl
+            });
+          }
+
+          const { error: pagesErr } = await supabaseClient.from('magazine_pages').insert(pageInserts);
+          if (pagesErr) throw pagesErr;
+
+          alert(`💾 Album enregistré !\nID: ${magazineId}\nPages: ${selectedPages.length}`);
+
+          document.getElementById('magTitle').value = '';
+          document.getElementById('magDate').value = '';
+          document.getElementById('magCover').value = '';
+          selectedPages = [];
+          renderPageQueue();
+        } catch (err) {
+          alert("❌ Erreur Magazine : " + err.message);
+        } finally {
+          setLoading(false);
         }
-
-        const { data: mag, error: magErr } = await supabaseClient
-          .from('magazines')
-          .insert([{ title, edition_date: date, cover_url: coverUrl, is_active: true }])
-          .select('id')
-          .single();
-
-        if (magErr) throw magErr;
-        const magazineId = mag.id;
-
-        const pageInserts = [];
-        for (let i = 0; i < selectedPages.length; i++) {
-          const file = selectedPages[i];
-          const pageFileName = `pages/${magazineId}/${Date.now()}_p${i+1}_${file.name.replace(/\s+/g, '_')}`;
-          const { error: pUpErr } = await supabaseClient.storage.from('magazines').upload(pageFileName, file);
-          if (pUpErr) throw pUpErr;
-          const { data: pUrlData } = supabaseClient.storage.from('magazines').getPublicUrl(pageFileName);
-          pageInserts.push({
-            magazine_id: magazineId,
-            page_number: i + 1,
-            image_url: pUrlData.publicUrl
-          });
-        }
-
-        const { error: pagesErr } = await supabaseClient.from('magazine_pages').insert(pageInserts);
-        if (pagesErr) throw pagesErr;
-
-        alert(`💾 Album enregistré !\nID: ${magazineId}\nPages: ${selectedPages.length}`);
-
-        document.getElementById('magTitle').value = '';
-        document.getElementById('magDate').value = '';
-        document.getElementById('magCover').value = '';
-        selectedPages = [];
-        renderPageQueue();
-      } catch (err) {
-        alert("❌ Erreur Magazine : " + err.message);
-      } finally {
-        setLoading(false);
-      }
+      });
     }
 
     async function deleteMagazine() {
-      const title = document.getElementById('magTitle').value.trim();
-      const adminKey = getAdminKey();
+      withAdminKey(async (adminKey) => {
+        const title = document.getElementById('magTitle').value.trim();
 
-      if (!title) { alert("Indiquez le titre exact de l'album à supprimer."); return; }
-      if (!confirm(`🗑 SUPPRIMER DÉFINITIVEMENT l'album "${title}" et toutes ses pages ?`)) return;
+        if (!title) { alert("Indiquez le titre exact de l'album à supprimer."); return; }
+        if (!confirm(`🗑 SUPPRIMER DÉFINITIVEMENT l'album "${title}" et toutes ses pages ?`)) return;
 
-      setLoading(true, 'SUPPRESSION EN CASCADE...');
-      try {
-        const { data: mag, error: findErr } = await supabaseClient
-          .from('magazines').select('id').eq('title', title).single();
+        setLoading(true, 'SUPPRESSION EN CASCADE...');
+        try {
+          const { data: mag, error: findErr } = await supabaseClient
+            .from('magazines').select('id').eq('title', title).maybeSingle();
 
-        if (findErr || !mag) throw new Error("Album non trouvé.");
+          if (findErr) throw findErr;
+          if (!mag) throw new Error("Album non trouvé (ou plusieurs albums portent ce titre — utilisez l'ID).");
 
-        await supabaseClient.from('magazine_pages').delete().eq('magazine_id', mag.id);
-        const { error: delErr } = await supabaseClient.from('magazines').delete().eq('id', mag.id);
-        if (delErr) throw delErr;
+          await supabaseClient.from('magazine_pages').delete().eq('magazine_id', mag.id);
+          const { error: delErr } = await supabaseClient.from('magazines').delete().eq('id', mag.id);
+          if (delErr) throw delErr;
 
-        document.getElementById('magTitle').value = '';
-        alert("🗑️ Album et pages supprimés.");
-      } catch (err) {
-        alert("❌ Erreur suppression : " + err.message);
-      } finally {
-        setLoading(false);
-      }
+          document.getElementById('magTitle').value = '';
+          alert("🗑️ Album et pages supprimés.");
+        } catch (err) {
+          alert("❌ Erreur suppression : " + err.message);
+        } finally {
+          setLoading(false);
+        }
+      });
     }
 
-    // ==================== BLOC 3 : FLASH INFO ====================
     async function toggleFlashStatus() {
-      const adminKey = getAdminKey();
-      isFlashActive = !isFlashActive;
-
-      const toggleBtn = document.getElementById('toggleFlashBtn');
-      const statusText = document.getElementById('flashStatusText');
-
-      setLoading(true, 'MISE À JOUR STATUT FLASH...');
-      try {
-        const { data: lastFlash } = await supabaseClient
-          .from('flash_infos')
-          .select('id')
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .single();
-
-        if (lastFlash) {
-          await supabaseClient
+      withAdminKey(async (adminKey) => {
+        setLoading(true, 'MISE À JOUR STATUT FLASH...');
+        try {
+          const { data: lastFlash, error: fetchErr } = await supabaseClient
             .from('flash_infos')
-            .update({ is_active: isFlashActive })
-            .eq('id', lastFlash.id);
-        }
+            .select('id')
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
 
-        if (isFlashActive) {
-          statusText.innerHTML = "🟢 ACTIVÉ (VISIBLE)";
-          statusText.style.color = "var(--emerald-success)";
-          toggleBtn.innerText = "DÉSACTIVER";
-          toggleBtn.className = "btn btn-emerald";
-          toggleBtn.style.background = "";
-          toggleBtn.style.color = "#000";
-        } else {
-          statusText.innerHTML = "⚪ DÉSACTIVÉ (MASQUÉ)";
-          statusText.style.color = "var(--text-muted)";
-          toggleBtn.innerText = "ACTIVER";
-          toggleBtn.className = "btn";
-          toggleBtn.style.background = "var(--text-muted)";
-          toggleBtn.style.color = "white";
+          if (fetchErr) throw fetchErr;
+
+          const nextState = !isFlashActive;
+
+          if (lastFlash) {
+            const { error: updErr } = await supabaseClient
+              .from('flash_infos')
+              .update({ is_active: nextState })
+              .eq('id', lastFlash.id);
+            if (updErr) throw updErr;
+          } else {
+            alert("⚠️ Aucun flash existant en base. Créez d'abord un flash via le bouton PUBLIER.");
+            setLoading(false);
+            return;
+          }
+
+          isFlashActive = nextState;
+          const toggleBtn = document.getElementById('toggleFlashBtn');
+          const statusText = document.getElementById('flashStatusText');
+
+          if (isFlashActive) {
+            statusText.innerHTML = "🟢 ACTIVÉ (VISIBLE)";
+            statusText.style.color = "var(--emerald-success)";
+            toggleBtn.innerText = "DÉSACTIVER";
+            toggleBtn.className = "btn btn-emerald";
+            toggleBtn.style.background = "";
+            toggleBtn.style.color = "#000";
+          } else {
+            statusText.innerHTML = "⚪ DÉSACTIVÉ (MASQUÉ)";
+            statusText.style.color = "var(--text-muted)";
+            toggleBtn.innerText = "ACTIVER";
+            toggleBtn.className = "btn";
+            toggleBtn.style.background = "var(--text-muted)";
+            toggleBtn.style.color = "white";
+          }
+        } catch (err) {
+          alert("❌ Erreur statut : " + err.message);
+        } finally {
+          setLoading(false);
         }
-      } catch (err) {
-        alert("❌ Erreur statut : " + err.message);
-      } finally {
-        setLoading(false);
-      }
+      });
     }
 
     async function uploadFlashInfo() {
-      const file = document.getElementById('flashImageInput').files[0];
-      const adminKey = getAdminKey();
+      withAdminKey(async (adminKey) => {
+        const file = document.getElementById('flashImageInput').files[0];
 
-      if (!file) { alert("Sélectionnez une photo HD 9:16."); return; }
+        if (!file) { alert("Sélectionnez une photo HD 9:16."); return; }
 
-      setLoading(true, 'PUBLICATION INFO FLASH...');
-      try {
-        const fileName = `flash/${Date.now()}_${file.name.replace(/\s+/g, '_')}`;
-        const { error: upErr } = await supabaseClient.storage.from('magazines').upload(fileName, file);
-        if (upErr) throw upErr;
-        const { data: urlData } = supabaseClient.storage.from('magazines').getPublicUrl(fileName);
+        setLoading(true, 'PUBLICATION INFO FLASH...');
+        try {
+          const fileName = `flash/${Date.now()}_${file.name.replace(/\s+/g, '_')}`;
+          const { error: upErr } = await supabaseClient.storage.from('magazines').upload(fileName, file);
+          if (upErr) throw upErr;
+          const { data: urlData } = supabaseClient.storage.from('magazines').getPublicUrl(fileName);
 
-        const { error: dbErr } = await supabaseClient.from('flash_infos').insert([{
-          title: "Info Flash du Jour",
-          message: "Flash direct admin",
-          image_url: urlData.publicUrl,
-          is_active: isFlashActive
-        }]);
+          const { error: dbErr } = await supabaseClient.from('flash_infos').insert([{
+            title: "Info Flash du Jour",
+            message: "Flash direct admin",
+            image_url: urlData.publicUrl,
+            is_active: isFlashActive
+          }]);
 
-        if (dbErr) throw dbErr;
-        alert("⚡ Info Flash HD publiée et persistée en base !");
-        document.getElementById('flashImageInput').value = '';
-      } catch (err) {
-        alert("❌ Erreur Flash : " + err.message);
-      } finally {
-        setLoading(false);
-      }
+          if (dbErr) throw dbErr;
+          alert("⚡ Info Flash HD publiée et persistée en base !");
+          document.getElementById('flashImageInput').value = '';
+        } catch (err) {
+          alert("❌ Erreur Flash : " + err.message);
+        } finally {
+          setLoading(false);
+        }
+      });
     }
 
     async function sendFlashNotification() {
-      const adminKey = getAdminKey();
-      setLoading(true, 'ENVOI NOTIFICATION PUSH...');
+      withAdminKey(async (adminKey) => {
+        setLoading(true, 'ENVOI NOTIFICATION PUSH...');
 
-      try {
-        const response =abolished = await fetch(`${API_BASE}/notifications/push`, {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'x-admin-key': adminKey 
-          },
-          body: JSON.stringify({ 
-            title: "MIKE EDGE - ALERTE FLASH", 
-            body: "Nouvelle information en direct !", 
-            target: "all" 
-          })
-        });
-        
-        if (response.status === 404) {
-          alert("⚠️ Route Push non encore déployée sur le serveur.\nL'info flash est en ligne, mais la notification push nécessite la mise à jour de server.js.");
+        try {
+          const response = await fetch(`${API_BASE}/notifications/push`, {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'x-admin-key': adminKey 
+            },
+            body: JSON.stringify({ 
+              title: "MIKE EDGE - ALERTE FLASH", 
+              body: "Nouvelle information en direct !", 
+              target: "all" 
+            })
+          });
+
+          if (response.status === 404) {
+            alert("⚠️ Route Push non encore déployée sur le serveur.\nL'info flash est en ligne, mais la notification push nécessite la mise à jour de server.js.");
+            return;
+          }
+
+          const result = await response.json();
+          if (response.ok && result.success) {
+            alert("📲 Notification Push envoyée à tous les abonnés !");
+          } else {
+            alert("❌ Erreur Push : " + (result.message || 'Refusé'));
+          }
+        } catch (err) {
+          alert("❌ Erreur réseau Push : " + err.message);
+        } finally {
+          setLoading(false);
+        }
+      });
+    }
+
+    async function uploadSessionTicket() {
+      withAdminKey(async (adminKey) => {
+        const file = document.getElementById('sessionTicketInput').files[0];
+
+        if (!file) {
+          alert("Veuillez sélectionner l'image HD 9:16 des 3 tickets.");
           return;
         }
-        
-        const result = await response.json();
-        if (response.ok && result.success) {
-          alert("📲 Notification Push envoyée à tous les abonnés !");
-        } else {
-          alert("❌ Erreur Push : " + (result.message || 'Refusé'));
+
+        setLoading(true, "TÉLÉVERSEMENT DU TICKET DE SESSION HD...");
+        try {
+          const fileName = `session_tickets/${Date.now()}_${file.name.replace(/\s+/g, '_')}`;
+          const { error: upErr } = await supabaseClient.storage.from('tickets').upload(fileName, file);
+          if (upErr) throw upErr;
+
+          const { data: urlData } = supabaseClient.storage.from('tickets').getPublicUrl(fileName);
+
+          const { error: dbErr } = await supabaseClient
+            .from('system_configs')
+            .upsert([
+              { key: 'session_ticket_url', value: urlData.publicUrl }
+            ], { onConflict: 'key' });
+
+          if (dbErr) throw dbErr;
+
+          alert(`🎉 SUCCÈS : L'affiche des 3 tickets HD (Écran 6) a été publiée avec succès !\nURL: ${urlData.publicUrl}`);
+          document.getElementById('sessionTicketInput').value = '';
+        } catch (err) {
+          alert("❌ Erreur de téléversement : " + err.message);
+        } finally {
+          setLoading(false);
         }
-      } catch (err) {
-        alert("❌ Erreur réseau Push : " + err.message);
-      } finally {
-        setLoading(false);
-      }
+      });
+    }
+
+    async function loadVrpPerformance() {
+      withAdminKey(async (adminKey) => {
+        setLoading(true, 'REQUÊTE STATS VRPS...');
+        try {
+          const { data: profiles, error: vrpErr } = await supabaseClient
+            .from('vrp_profiles')
+            .select('vrp_code, zone, user_id');
+
+          if (vrpErr) throw vrpErr;
+
+          const tableBody = document.getElementById('vrpTableBody');
+          tableBody.innerHTML = '';
+
+          if (profiles.length === 0) {
+            tableBody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">Aucun agent VRP enregistré en base.</td></tr>`;
+            document.getElementById('vrpTableContainer').style.display = 'block';
+            return;
+          }
+
+          for (const vrp of profiles) {
+            const { count, error: countErr } = await supabaseClient
+              .from('users')
+              .select('*', { count: 'exact', head: true })
+              .eq('referred_by_id', vrp.user_id)
+              .eq('status', 'ACTIVE');
+
+            if (countErr) throw countErr;
+
+            const totalPaidReferrals = count || 0;
+            const totalMonthsEarned = Math.min(3, Math.floor(totalPaidReferrals / 3)); 
+            const totalDaysEarned = totalMonthsEarned * 30;
+
+            const row = document.createElement('tr');
+            row.innerHTML = `
+              <td style="color: var(--gold-bright); font-weight: bold;">${vrp.vrp_code}</td>
+              <td>${vrp.zone || 'Sénégal'}</td>
+              <td class="status-ok">${totalPaidReferrals} abonnés</td>
+              <td style="color: var(--diamond-cyan); font-weight: bold;">+${totalDaysEarned} jours offerts</td>
+            `;
+            tableBody.appendChild(row);
+          }
+
+          document.getElementById('vrpTableContainer').style.display = 'block';
+        } catch (err) {
+          alert("❌ Erreur Statistiques : " + err.message);
+        } finally {
+          setLoading(false);
+        }
+      });
     }
   </script>
 </body>
