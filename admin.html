@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>🎛️ COCKPIT ADMIN — MIKE EDGE V3.0.1</title>
+  <title>🎛️ COCKPIT ADMIN — MIKE EDGE V3.0.3</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
   <style>
@@ -163,10 +163,6 @@
       background: var(--bg-elevated);
       cursor: pointer;
     }
-    .page-thumb-empty:active {
-      border-color: var(--gold-bright);
-      color: var(--gold-bright);
-    }
 
     table {
       width: 100%;
@@ -207,22 +203,28 @@
 </head>
 <body>
 
+  <!-- OVERLAY CHARGEMENT -->
   <div id="loadingOverlay">
     <div class="spinner"></div>
     <p id="loadingText">TRAITEMENT EN COURS...</p>
   </div>
 
+  <!-- HEADER -->
   <div style="text-align: center; margin-bottom: 20px; padding-top: 10px;">
     <h1 style="font-size: 20px; color: var(--gold); letter-spacing: 1px;">🎛️ COCKPIT ADMIN MIKE EDGE</h1>
-    <p style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">CONTRÔLE MOBILE (SAMSUNG A16) — V3.0.1 SCELLÉ</p>
-    <p style="font-size: 10px; color: var(--text-muted); margin-top: 4px;">Backend: V11.11 | SQL: V2.8.1</p>
+    <p style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">CONTRÔLE MOBILE (SAMSUNG A16) — V3.0.3 FINAL</p>
+    <p style="font-size: 10px; color: var(--text-muted); margin-top: 4px;">Backend: V11.11 | Supabase RLS Scellé</p>
   </div>
 
+  <!-- AUTHENTIFICATION GLOBALE -->
   <div class="card" style="background: rgba(212,175,55,0.05);">
     <label class="label">🔐 Clé Admin Secrète :</label>
     <input type="password" id="adminKeyInput" placeholder="Saisir la clé secrète...">
   </div>
 
+  <!-- ========================================================== -->
+  <!-- 📦 BLOC 1 : SAISIE & PRÉ-VALIDATION DES PRONOSTICS          -->
+  <!-- ========================================================== -->
   <div class="card">
     <div class="card-title">
       <span>1. SAISIE DES PRONOSTICS</span>
@@ -250,6 +252,9 @@
     </div>
   </div>
 
+  <!-- ========================================================== -->
+  <!-- 📦 BLOC 2 : KIOSQUE MAGAZINE HD                             -->
+  <!-- ========================================================== -->
   <div class="card">
     <div class="card-title">
       <span>2. KIOSQUE MAGAZINE HD</span>
@@ -283,6 +288,9 @@
     </div>
   </div>
 
+  <!-- ========================================================== -->
+  <!-- 📦 BLOC 3 : INFO FLASH HD (Pop-up Plein Écran)              -->
+  <!-- ========================================================== -->
   <div class="card">
     <div class="card-title">
       <span>3. INFO FLASH HD (POP-UP)</span>
@@ -304,6 +312,9 @@
     <button class="btn btn-blue" onclick="sendFlashNotification()">🔔 NOTIFICATION PUSH URGENTE</button>
   </div>
 
+  <!-- ========================================================== -->
+  <!-- 📦 BLOC 4 : TICKET DE SESSION HD (ÉCRAN 6)                  -->
+  <!-- ========================================================== -->
   <div class="card">
     <div class="card-title">
       <span>4. TICKET DE SESSION HD (ÉCRAN 6)</span>
@@ -316,6 +327,9 @@
     <button class="btn btn-gold" onclick="uploadSessionTicket()">💾 PUBLIER L'AFFICHE DES 3 TICKETS HD</button>
   </div>
 
+  <!-- ========================================================== -->
+  <!-- 📦 BLOC 5 : ANALYSES & RAPPORTS DE PARRAINAGE VRP           -->
+  <!-- ========================================================== -->
   <div class="card">
     <div class="card-title">
       <span>5. ANALYSES & RAPPORTS DE PARRAINAGE VRP</span>
@@ -340,6 +354,7 @@
   </div>
 
   <script>
+    // ==================== CONFIGURATION OFFICIELLE ====================
     const SUPABASE_URL = 'https://yntigkzalrqnjfjwxgzd.supabase.co';
     const SUPABASE_ANON_KEY = 'sb_publishable_fDvGSVpaOFWV59StpXg-YQ_Vm3Vw1pt';
     const API_BASE = 'https://mike-edge-backend.onrender.com/api/v1';
@@ -349,6 +364,7 @@
     let isFlashActive = true;
     let selectedPages = []; 
 
+    // ==================== UTILITAIRES SÉCURITÉ ====================
     function setLoading(isLoading, text) {
       const overlay = document.getElementById('loadingOverlay');
       document.getElementById('loadingText').innerText = text || 'TRAITEMENT EN COURS...';
@@ -357,7 +373,7 @@
 
     function getAdminKey() {
       const key = document.getElementById('adminKeyInput').value.trim();
-      if (!key) throw new Error("Clé Admin requise.");
+      if (!key) throw new Error("Clé Admin requise. Tapez-la dans le champ du haut.");
       return key;
     }
 
@@ -371,6 +387,7 @@
       }
     }
 
+    // ==================== BLOC 1 : PRONOSTICS ====================
     function verifySheet() {
       const text = document.getElementById('rawTextInput').value.trim();
       const previewBox = document.getElementById('previewBox');
@@ -398,7 +415,7 @@
     async function publishSector() {
       withAdminKey(async (adminKey) => {
         const text = document.getElementById('rawTextInput').value.trim();
-        setLoading(true, 'IMPORT VERS SUPABASE...');
+        setLoading(true, 'IMPORT VERS LE BACKEND...');
         try {
           const response = await fetch(`${API_BASE}/import`, {
             method: 'POST',
@@ -425,6 +442,7 @@
       });
     }
 
+    // ==================== BLOC 2 : MAGAZINE ====================
     function handlePagesSelect(input) {
       const files = Array.from(input.files);
       if (files.length === 0) return;
@@ -548,7 +566,7 @@
           const { error: pagesErr } = await supabaseClient.from('magazine_pages').insert(pageInserts);
           if (pagesErr) throw pagesErr;
 
-          alert(`💾 Album enregistré !\nID: ${magazineId}\nPages: ${selectedPages.length}`);
+          alert(`💾 Album enregistré avec succès !\nID: ${magazineId}\nPages: ${selectedPages.length}`);
 
           document.getElementById('magTitle').value = '';
           document.getElementById('magDate').value = '';
@@ -576,14 +594,14 @@
             .from('magazines').select('id').eq('title', title).maybeSingle();
 
           if (findErr) throw findErr;
-          if (!mag) throw new Error("Album non trouvé (ou plusieurs albums portent ce titre — utilisez l'ID).");
+          if (!mag) throw new Error("Album non trouvé.");
 
           await supabaseClient.from('magazine_pages').delete().eq('magazine_id', mag.id);
           const { error: delErr } = await supabaseClient.from('magazines').delete().eq('id', mag.id);
           if (delErr) throw delErr;
 
           document.getElementById('magTitle').value = '';
-          alert("🗑️ Album et pages supprimés.");
+          alert("🗑️ Album et pages supprimés de la base.");
         } catch (err) {
           alert("❌ Erreur suppression : " + err.message);
         } finally {
@@ -592,6 +610,7 @@
       });
     }
 
+    // ==================== BLOC 3 : FLASH INFO ====================
     async function toggleFlashStatus() {
       withAdminKey(async (adminKey) => {
         setLoading(true, 'MISE À JOUR STATUT FLASH...');
@@ -714,6 +733,7 @@
       });
     }
 
+    // ==================== BLOC 4 : TICKET DE SESSION ====================
     async function uploadSessionTicket() {
       withAdminKey(async (adminKey) => {
         const file = document.getElementById('sessionTicketInput').files[0];
@@ -749,6 +769,7 @@
       });
     }
 
+    // ==================== BLOC 5 : SUIVI VRP SÉCURISÉ ====================
     async function loadVrpPerformance() {
       withAdminKey(async (adminKey) => {
         setLoading(true, 'REQUÊTE STATS VRPS...');
@@ -782,12 +803,26 @@
             const totalDaysEarned = totalMonthsEarned * 30;
 
             const row = document.createElement('tr');
-            row.innerHTML = `
-              <td style="color: var(--gold-bright); font-weight: bold;">${vrp.vrp_code}</td>
-              <td>${vrp.zone || 'Sénégal'}</td>
-              <td class="status-ok">${totalPaidReferrals} abonnés</td>
-              <td style="color: var(--diamond-cyan); font-weight: bold;">+${totalDaysEarned} jours offerts</td>
-            `;
+            
+            // Sécurisation XSS DOM explicite (Correction ChatGPT)
+            const tdCode = document.createElement('td');
+            tdCode.style.color = 'var(--gold-bright)';
+            tdCode.style.fontWeight = 'bold';
+            tdCode.textContent = vrp.vrp_code;
+
+            const tdZone = document.createElement('td');
+            tdZone.textContent = vrp.zone || 'Sénégal';
+
+            const tdCount = document.createElement('td');
+            tdCount.className = 'status-ok';
+            tdCount.textContent = `${totalPaidReferrals} abonnés`;
+
+            const tdDays = document.createElement('td');
+            tdDays.style.color = 'var(--diamond-cyan)';
+            tdDays.style.fontWeight = 'bold';
+            tdDays.textContent = `+${totalDaysEarned} jours offerts`;
+
+            row.append(tdCode, tdZone, tdCount, tdDays);
             tableBody.appendChild(row);
           }
 
@@ -801,4 +836,4 @@
     }
   </script>
 </body>
-</html>
+  </html>
