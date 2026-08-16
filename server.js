@@ -1,7 +1,7 @@
 /**
- * 🏆 PROJET MIKE EDGE - SERVER.JS (V11.13 - FULL SCELLÉ AVEC MATCH DETAIL)
+ * 🏆 PROJET MIKE EDGE - SERVER.JS (V11.14 - FULL SCELLÉ AVEC PARRAINAGE PROFIL)
  * -------------------------------------------------------------------
- * Statut : COMPLET, SCELLÉ & VALIDÉ
+ * Statut : En cours d'audit par Kimi
  * -------------------------------------------------------------------
  */
 
@@ -63,7 +63,7 @@ const authAndImportLimiter = rateLimit({
 });
 
 // ==========================================
-// 1. AUTHENTIFICATION SÉCURISÉE & RÉCUPÉRATION
+// 1. AUTHENTIFICATION SÉCURISÉE & PROFIL VRP
 // ==========================================
 
 app.post('/api/v1/auth/login', authAndImportLimiter, async (req, res) => {
@@ -74,7 +74,19 @@ app.post('/api/v1/auth/login', authAndImportLimiter, async (req, res) => {
     }
 
     try {
-        const query = 'SELECT id, role, status, phone, password_hash, subscription_expiry FROM users WHERE phone = $1';
+        // Requête enrichie : récupère le profil, le code de parrainage, et compte les filleuls payants en direct
+        const query = `
+            SELECT 
+                u.id, u.role, u.status, u.phone, u.password_hash, u.subscription_expiry, u.referral_code,
+                (
+                    SELECT COUNT(DISTINCT p.user_id) 
+                    FROM payments p 
+                    JOIN users f ON p.user_id = f.id 
+                    WHERE f.referred_by_id = u.id AND p.status = 'SUCCESS'
+                ) as paid_referrals_count
+            FROM users u 
+            WHERE u.phone = $1
+        `;
         const result = await pool.query(query, [phone.trim()]);
 
         if (result.rows.length === 0) {
@@ -88,6 +100,8 @@ app.post('/api/v1/auth/login', authAndImportLimiter, async (req, res) => {
         }
 
         delete user.password_hash;
+        user.paid_referrals_count = parseInt(user.paid_referrals_count || 0, 10);
+
         res.json({ success: true, user });
     } catch (err) {
         console.error('❌ Erreur Auth:', err.message);
@@ -262,7 +276,6 @@ app.get('/api/v1/matches/:category', async (req, res) => {
     }
 });
 
-// Route Détail d'un Match (Pour MatchDetailScreen.js)
 app.get('/api/v1/matches/detail/:id', async (req, res) => {
     const matchId = parseInt(req.params.id, 10);
     if (isNaN(matchId) || matchId <= 0) {
@@ -418,43 +431,18 @@ app.post('/api/v1/payments/webhook', async (req, res) => {
     } catch (err) {
         if (client) await client.query('ROLLBACK').catch(() => {});
         console.error('❌ Erreur Webhook:', err.message);
-        res.status(500).json({ success: false, code: 'ERR_WEBHOOK_PROCESSING' });
+        res.status(500).json({ success: false, code: 'ERR_DB_ERROR' });
     } finally {
         if (client) client.release();
     }
 });
 
 // ==========================================
-// 5. HANDLERS D'ERREUR GLOBALES & 404
+// 5. ERREURS & GRACEFUL SHUTDOWN
 // ==========================================
+app.use((req, res) => res.status(404).json({ success: false, code: 'ERR_NOT_FOUND' }));
+app.use((err, req, res, next) => res.status(500).json({ success: false, code: 'ERR_SERVER' }));
 
-app.use((req, res) => {
-    res.status(404).json({ success: false, code: 'ERR_ROUTE_NOT_FOUND', message: 'Route non trouvée.' });
-});
-
-app.use((err, req, res, next) => {
-    console.error('❌ CRITICAL_EXPRESS_ERROR:', err.stack);
-    res.status(500).json({ success: false, code: 'ERR_SERVER_EXCEPTION', message: 'Une erreur interne est survenue.' });
-});
-
-// ==========================================
-// 6. ARRÊT GRACIEUX
-// ==========================================
-
-const server = app.listen(PORT, () => {
-    console.log(`🟢 Serveur Mike Edge connecté et démarré sur le port ${PORT}`);
-});
-
-const gracefulShutdown = async (signal) => {
-    console.log(`🛑 Signal ${signal} reçu. Fermeture du pool PostgreSQL...`);
-    server.close(async () => {
-        await pool.end();
-        console.log('⚡ Pool fermé. Serveur éteint proprement.');
-        process.exit(0);
-    });
-};
-
-process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-process.on('SIGINT', () => gracefulShutdown('SIGINT'));
-
-module.exports = app;
+const server = app.listen(PORT, () => console.log(`🚀 Serveur en écoute sur le port ${PORT}`));
+process.on('SIGTERM', () => server.close(() => pool.end()));
+process.on('SIGINT', () => server.close(() => pool.end()));
