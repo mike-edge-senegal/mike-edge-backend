@@ -1,5 +1,5 @@
 /**
- * 🏆 PROJET MIKE EDGE - SERVER.JS (V11.12 - FULL SCELLÉ AVEC PATCH DE SÉCURITÉ OTP)
+ * 🏆 PROJET MIKE EDGE - SERVER.JS (V11.13 - FULL SCELLÉ AVEC MATCH DETAIL)
  * -------------------------------------------------------------------
  * Statut : COMPLET, SCELLÉ & VALIDÉ
  * -------------------------------------------------------------------
@@ -112,7 +112,7 @@ app.post('/api/v1/auth/forgot-password', authAndImportLimiter, async (req, res) 
     }
 });
 
-// Route Réinitialisation de mot de passe (Validation OTP + Nouveau MDP) — CORRIGÉE SÉCURITÉ
+// Route Réinitialisation de mot de passe (Validation OTP + Nouveau MDP)
 app.post('/api/v1/auth/reset-password', authAndImportLimiter, async (req, res) => {
     const { phone, otp, newPassword } = req.body;
 
@@ -121,7 +121,6 @@ app.post('/api/v1/auth/reset-password', authAndImportLimiter, async (req, res) =
     }
 
     try {
-        // CORRECTION SÉCURITÉ KIMI : Strictement réservé au développement local
         const isDevBypass = process.env.NODE_ENV === 'development' && otp === '1234';
         
         if (!isDevBypass) {
@@ -224,7 +223,7 @@ app.post('/api/v1/import', authAndImportLimiter, async (req, res) => {
 });
 
 // ==========================================
-// 3. ROUTES DE CONTENU
+// 3. ROUTES DE CONTENU & DÉTAIL MATCH
 // ==========================================
 
 app.get('/api/v1/matches/:category', async (req, res) => {
@@ -260,6 +259,40 @@ app.get('/api/v1/matches/:category', async (req, res) => {
         res.json({ success: true, data: result.rows });
     } catch (err) {
         res.status(500).json({ success: false, code: 'ERR_FETCH_MATCHES' });
+    }
+});
+
+// Route Détail d'un Match (Pour MatchDetailScreen.js)
+app.get('/api/v1/matches/detail/:id', async (req, res) => {
+    const matchId = parseInt(req.params.id, 10);
+    if (isNaN(matchId) || matchId <= 0) {
+        return res.status(400).json({ success: false, code: 'ERR_INVALID_ID', message: "L'ID du match doit être un entier positif." });
+    }
+
+    try {
+        const query = `
+            SELECT 
+                m.id, m.match_datetime, m.irg_index,
+                l.name as league_name,
+                t1.name as home_team,
+                t2.name as away_team,
+                (SELECT json_agg(b) FROM bets b WHERE b.match_id = m.id) as bets
+            FROM matches m
+            JOIN leagues l ON m.league_id = l.id
+            JOIN teams t1 ON m.home_team_id = t1.id
+            JOIN teams t2 ON m.away_team_id = t2.id
+            WHERE m.id = $1;
+        `;
+        const result = await pool.query(query, [matchId]);
+        
+        if (result.rows.length === 0) {
+            return res.status(404).json({ success: false, code: 'ERR_MATCH_NOT_FOUND', message: 'Match introuvable.' });
+        }
+
+        res.json({ success: true, data: result.rows[0] });
+    } catch (err) {
+        console.error('❌ Erreur Fetch Match Detail:', err.message);
+        res.status(500).json({ success: false, code: 'ERR_FETCH_MATCH_DETAIL' });
     }
 });
 
