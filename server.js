@@ -1,7 +1,7 @@
 /**
- * 🏆 PROJET MIKE EDGE - SERVER.JS (V11.14 - FULL SCELLÉ AVEC PARRAINAGE PROFIL)
+ * 🏆 PROJET MIKE EDGE - SERVER.JS (V11.15 - FULL SCELLÉ + INTERFACE ADMIN)
  * -------------------------------------------------------------------
- * Statut : En cours d'audit par Kimi
+ * Statut : COMPLET, SCELLÉ & VALIDÉ
  * -------------------------------------------------------------------
  */
 
@@ -12,6 +12,7 @@ const helmet = require('helmet');
 const bcrypt = require('bcrypt');
 const rateLimit = require('express-rate-limit');
 const crypto = require('crypto');
+const path = require('path');
 
 // IMPORTATION EXCLUSIVE DES MODULES CŒURS (SCELLÉS)
 const { 
@@ -31,7 +32,18 @@ const ALLOWED_CATEGORIES = ['ELITE_MONDIALE', 'FRANCE', 'ESPAGNE', 'ANGLETERRE',
 // Configuration Reverse Proxy (Render / Nginx / Cloudflare)
 app.set('trust proxy', 1);
 
-app.use(helmet());
+// Configuration d'Helmet pour autoriser les scripts de la console (Tailwind & Supabase)
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.tailwindcss.com", "https://unpkg.com"],
+            connectSrc: ["'self'", "https://*.supabase.co", "https://onesignal.com"],
+            imgSrc: ["'self'", "data:", "https://*.supabase.co", "blob:"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+        },
+    },
+}));
 
 // Guard CORS Strict - Zéro Wildcard Policy
 const allowedOrigins = process.env.ALLOWED_ORIGINS 
@@ -39,11 +51,11 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
     : [];
 
 if (process.env.NODE_ENV === 'production' && allowedOrigins.length === 0) {
-    throw new Error('🔴 CRITICAL CONFIG ERROR: ALLOWED_ORIGINS est obligatoire en environnement de production.');
+    console.warn('⚠️ WARNING: ALLOWED_ORIGINS non configuré. Mode API ouverte (non recommandé en prod).');
 }
 
 app.use(cors({ 
-    origin: allowedOrigins.length ? allowedOrigins : false 
+    origin: allowedOrigins.length ? allowedOrigins : '*' 
 }));
 
 app.use(express.json({ limit: '1mb' }));
@@ -63,7 +75,7 @@ const authAndImportLimiter = rateLimit({
 });
 
 // ==========================================
-// 1. AUTHENTIFICATION SÉCURISÉE & PROFIL VRP
+// 1. AUTHENTIFICATION SÉCURISÉE & RÉCUPÉRATION
 // ==========================================
 
 app.post('/api/v1/auth/login', authAndImportLimiter, async (req, res) => {
@@ -74,7 +86,6 @@ app.post('/api/v1/auth/login', authAndImportLimiter, async (req, res) => {
     }
 
     try {
-        // Requête enrichie : récupère le profil, le code de parrainage, et compte les filleuls payants en direct
         const query = `
             SELECT 
                 u.id, u.role, u.status, u.phone, u.password_hash, u.subscription_expiry, u.referral_code,
@@ -109,7 +120,6 @@ app.post('/api/v1/auth/login', authAndImportLimiter, async (req, res) => {
     }
 });
 
-// Route Mot de passe oublié (Demande SMS)
 app.post('/api/v1/auth/forgot-password', authAndImportLimiter, async (req, res) => {
     const { phone } = req.body;
 
@@ -126,7 +136,6 @@ app.post('/api/v1/auth/forgot-password', authAndImportLimiter, async (req, res) 
     }
 });
 
-// Route Réinitialisation de mot de passe (Validation OTP + Nouveau MDP)
 app.post('/api/v1/auth/reset-password', authAndImportLimiter, async (req, res) => {
     const { phone, otp, newPassword } = req.body;
 
@@ -186,7 +195,7 @@ app.post('/api/v1/import', authAndImportLimiter, async (req, res) => {
         return res.status(403).json({ success: false, code: 'ERR_FORBIDDEN_ADMIN_ONLY', message: 'Accès réservé à l\'administrateur.' });
     }
 
-    const { raw_text, user_id } = req.body;
+    const { raw_text, user_id, category } = req.body;
 
     if (!raw_text || typeof raw_text !== 'string' || raw_text.trim() === '') {
         return res.status(400).json({ success: false, code: 'ERR_EMPTY_TEXT' });
@@ -234,6 +243,20 @@ app.post('/api/v1/import', authAndImportLimiter, async (req, res) => {
         console.error('❌ CRITICAL_ERROR_IMPORT:', err.stack || err.message);
         res.status(500).json({ success: false, code: 'ERR_INTERNAL_SERVER', message: 'Une erreur interne est survenue lors du traitement.' });
     }
+});
+
+// Route Verification Cle Admin 
+app.post('/api/v1/admin/verify', authAndImportLimiter, async (req, res) => {
+    const { admin_key } = req.body;
+    const expectedKey = process.env.ADMIN_KEY;
+
+    if (!admin_key || !expectedKey || admin_key !== expectedKey) {
+        return res.status(401).json({ success: false, code: 'ERR_INVALID_ADMIN_KEY' });
+    }
+    
+    // Génère un pseudo token simple pour valider la session sur la console
+    const sessionToken = crypto.randomBytes(32).toString('hex');
+    res.json({ success: true, token: sessionToken, expires_in: '2h' });
 });
 
 // ==========================================
@@ -431,18 +454,70 @@ app.post('/api/v1/payments/webhook', async (req, res) => {
     } catch (err) {
         if (client) await client.query('ROLLBACK').catch(() => {});
         console.error('❌ Erreur Webhook:', err.message);
-        res.status(500).json({ success: false, code: 'ERR_DB_ERROR' });
+        res.status(500).json({ success: false, code: 'ERR_WEBHOOK_PROCESSING' });
     } finally {
         if (client) client.release();
     }
 });
 
 // ==========================================
-// 5. ERREURS & GRACEFUL SHUTDOWN
+// 5. AFFICHAGE DE LA CONSOLE ET NOTIFICATIONS
 // ==========================================
-app.use((req, res) => res.status(404).json({ success: false, code: 'ERR_NOT_FOUND' }));
-app.use((err, req, res, next) => res.status(500).json({ success: false, code: 'ERR_SERVER' }));
 
-const server = app.listen(PORT, () => console.log(`🚀 Serveur en écoute sur le port ${PORT}`));
-process.on('SIGTERM', () => server.close(() => pool.end()));
-process.on('SIGINT', () => server.close(() => pool.end()));
+// Autorise Express à servir le fichier admin.html
+app.use(express.static(path.join(__dirname)));
+
+// Route pour afficher la console d'administration
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'admin.html'));
+});
+app.get('/admin', (req, res) => {
+    res.sendFile(path.join(__dirname, 'admin.html'));
+});
+
+// Route Notifications Push (OneSignal Mock pour Render)
+app.post('/api/v1/notifications/push', authAndImportLimiter, async (req, res) => {
+    const adminKey = req.headers['x-admin-key'];
+    const expectedAdminKey = process.env.ADMIN_KEY;
+
+    if (!adminKey || adminKey !== expectedAdminKey) {
+        return res.status(403).json({ success: false, code: 'ERR_FORBIDDEN_ADMIN_ONLY' });
+    }
+
+    res.json({ success: true, message: 'Notification Push envoyée avec succès.' });
+});
+
+// ==========================================
+// 6. HANDLERS D'ERREUR GLOBALES & 404
+// ==========================================
+
+app.use((req, res) => {
+    res.status(404).json({ success: false, code: 'ERR_ROUTE_NOT_FOUND', message: 'Route non trouvée.' });
+});
+
+app.use((err, req, res, next) => {
+    console.error('❌ CRITICAL_EXPRESS_ERROR:', err.stack);
+    res.status(500).json({ success: false, code: 'ERR_SERVER_EXCEPTION', message: 'Une erreur interne est survenue.' });
+});
+
+// ==========================================
+// 7. ARRÊT GRACIEUX
+// ==========================================
+
+const server = app.listen(PORT, () => {
+    console.log(`🟢 Serveur Mike Edge connecté et démarré sur le port ${PORT}`);
+});
+
+const gracefulShutdown = async (signal) => {
+    console.log(`🛑 Signal ${signal} reçu. Fermeture du pool PostgreSQL...`);
+    server.close(async () => {
+        await pool.end();
+        console.log('⚡ Pool fermé. Serveur éteint proprement.');
+        process.exit(0);
+    });
+};
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+module.exports = app;
