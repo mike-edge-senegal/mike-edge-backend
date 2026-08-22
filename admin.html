@@ -1,839 +1,179 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>🎛️ COCKPIT ADMIN — MIKE EDGE V3.0.3</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-  <style>
-    :root {
-      --gold: #D4AF37;
-      --gold-bright: #FFD700;
-      --bg-dark: #0D1117;
-      --bg-card: rgba(13, 17, 23, 0.92);
-      --bg-elevated: #161B22;
-      --emerald-success: #50C878;
-      --alert-red: #E0115F;
-      --diamond-cyan: #00E5FF;
-      --text-primary: #F0F6FC;
-      --text-muted: #8B949E;
-      --border-gold: rgba(212, 175, 55, 0.3);
-    }
-    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-    body {
-      background: var(--bg-dark);
-      color: var(--text-primary);
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      min-height: 100vh;
-      padding: 12px;
-      padding-bottom: 80px;
-    }
-    .card {
-      background: var(--bg-card);
-      border: 1px solid var(--border-gold);
-      border-radius: 16px;
-      padding: 16px;
-      margin-bottom: 16px;
-      backdrop-filter: blur(10px);
-    }
-    .card-title {
-      font-size: 14px;
-      font-weight: 800;
-      color: var(--gold);
-      letter-spacing: 0.5px;
-      margin-bottom: 12px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      border-bottom: 1px solid var(--border-gold);
-      padding-bottom: 8px;
-    }
-    .label {
-      font-size: 11px;
-      font-weight: 700;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      margin-bottom: 6px;
-      display: block;
-    }
-    .btn {
-      width: 100%;
-      padding: 14px;
-      border: none;
-      border-radius: 12px;
-      font-weight: 800;
-      font-size: 14px;
-      text-transform: uppercase;
-      cursor: pointer;
-      transition: all 0.2s;
-      margin-top: 10px;
-      letter-spacing: 0.5px;
-      position: relative;
-      overflow: hidden;
-    }
-    .btn:active { transform: scale(0.98); }
-    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
-    .btn-gold { background: linear-gradient(135deg, var(--gold), var(--gold-bright)); color: #000; }
-    .btn-emerald { background: var(--emerald-success); color: #000; }
-    .btn-blue { background: #0055FF; color: white; }
-    .btn-outline-red { background: transparent; border: 1px solid var(--alert-red); color: var(--alert-red); }
-
-    input[type="text"], input[type="date"], input[type="password"], input[type="file"], select, textarea {
-      width: 100%;
-      background: var(--bg-elevated);
-      border: 1px solid var(--border-gold);
-      border-radius: 10px;
-      padding: 12px;
-      color: var(--text-primary);
-      font-size: 14px;
-      margin-bottom: 10px;
-    }
-    textarea { min-height: 160px; font-family: monospace; font-size: 12px; }
-
-    .status-ok { color: var(--emerald-success); font-weight: 700; }
-    .status-warn { color: var(--gold-bright); font-weight: 700; }
-    .status-err { color: var(--alert-red); font-weight: 700; }
-
-    .page-queue-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 8px;
-    }
-    .page-thumb {
-      position: relative;
-      border-radius: 10px;
-      overflow: hidden;
-      border: 2px solid var(--border-gold);
-      aspect-ratio: 9 / 16;
-      background: var(--bg-elevated);
-      cursor: pointer;
-      transition: transform 0.15s, border-color 0.15s;
-    }
-    .page-thumb:active {
-      transform: scale(0.96);
-      border-color: var(--gold-bright);
-    }
-    .page-thumb img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: block;
-    }
-    .page-thumb-num {
-      position: absolute;
-      top: 4px;
-      left: 4px;
-      background: rgba(0, 0, 0, 0.75);
-      color: var(--gold-bright);
-      font-size: 10px;
-      font-weight: 800;
-      padding: 2px 7px;
-      border-radius: 6px;
-      backdrop-filter: blur(4px);
-      border: 1px solid rgba(212, 175, 55, 0.3);
-    }
-    .page-thumb-remove {
-      position: absolute;
-      top: 4px;
-      right: 4px;
-      width: 24px;
-      height: 24px;
-      background: var(--alert-red);
-      color: white;
-      border: none;
-      border-radius: 50%;
-      font-size: 12px;
-      font-weight: 800;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      z-index: 2;
-    }
-    .page-thumb-empty {
-      border: 2px dashed var(--border-gold);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: var(--text-muted);
-      font-size: 20px;
-      aspect-ratio: 9 / 16;
-      border-radius: 10px;
-      background: var(--bg-elevated);
-      cursor: pointer;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 10px;
-      font-size: 12px;
-    }
-    th, td {
-      border: 1px solid var(--border-gold);
-      padding: 10px;
-      text-align: left;
-    }
-    th {
-      background-color: rgba(212, 175, 55, 0.1);
-      color: var(--gold);
-    }
-
-    #loadingOverlay {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.85);
-      z-index: 9999;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-    }
-    .spinner {
-      width: 48px; height: 48px;
-      border: 4px solid var(--border-gold);
-      border-top-color: var(--gold-bright);
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    #loadingOverlay p { margin-top: 16px; color: var(--gold); font-weight: 700; font-size: 14px; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>🎛️ COCKPIT ADMIN — MIKE EDGE V3.0.1</title>
+    <style>
+        :root { --gold: #D4AF37; --gold-bright: #FFD700; --bg-dark: #0D1117; --bg-card: rgba(13, 17, 23, 0.95); --emerald: #50C878; --alert: #E0115F; --text: #F0F6FC; }
+        body { background: var(--bg-dark); color: var(--text); font-family: sans-serif; padding: 16px; margin: 0; }
+        .card { background: var(--bg-card); border: 1px solid var(--gold); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+        .label { font-size: 11px; color: #8B949E; text-transform: uppercase; margin-bottom: 6px; display: block; }
+        input, select, textarea { width: 100%; box-sizing: border-box; background: #161B22; border: 1px solid #30363D; border-radius: 8px; padding: 10px; color: white; margin-bottom: 10px; font-size: 14px; }
+        textarea { min-height: 120px; resize: vertical; }
+        .btn { width: 100%; padding: 14px; border: none; border-radius: 8px; font-weight: 800; cursor: pointer; text-transform: uppercase; font-size: 14px; transition: opacity 0.2s; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-gold { background: var(--gold); color: #000; }
+        .btn-emerald { background: var(--emerald); color: #000; margin-top: 10px; }
+        .status { margin-top: 10px; font-size: 12px; font-weight: bold; text-align: center; padding: 8px; border-radius: 6px; display: none; }
+        .status.ok { display: block; background: rgba(80, 200, 120, 0.15); color: var(--emerald); border: 1px solid var(--emerald); }
+        .status.err { display: block; background: rgba(224, 17, 95, 0.15); color: var(--alert); border: 1px solid var(--alert); }
+        .status.warn { display: block; background: rgba(212, 175, 55, 0.15); color: var(--gold-bright); border: 1px solid var(--gold); }
+    </style>
 </head>
 <body>
-
-  <!-- OVERLAY CHARGEMENT -->
-  <div id="loadingOverlay">
-    <div class="spinner"></div>
-    <p id="loadingText">TRAITEMENT EN COURS...</p>
-  </div>
-
-  <!-- HEADER -->
-  <div style="text-align: center; margin-bottom: 20px; padding-top: 10px;">
-    <h1 style="font-size: 20px; color: var(--gold); letter-spacing: 1px;">🎛️ COCKPIT ADMIN MIKE EDGE</h1>
-    <p style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">CONTRÔLE MOBILE (SAMSUNG A16) — V3.0.3 FINAL</p>
-    <p style="font-size: 10px; color: var(--text-muted); margin-top: 4px;">Backend: V11.11 | Supabase RLS Scellé</p>
-  </div>
-
-  <!-- AUTHENTIFICATION GLOBALE -->
-  <div class="card" style="background: rgba(212,175,55,0.05);">
-    <label class="label">🔐 Clé Admin Secrète :</label>
-    <input type="password" id="adminKeyInput" placeholder="Saisir la clé secrète...">
-  </div>
-
-  <!-- ========================================================== -->
-  <!-- 📦 BLOC 1 : SAISIE & PRÉ-VALIDATION DES PRONOSTICS          -->
-  <!-- ========================================================== -->
-  <div class="card">
-    <div class="card-title">
-      <span>1. SAISIE DES PRONOSTICS</span>
-      <span style="font-size: 10px; color: var(--emerald-success);">ACTIF</span>
+    <div style="text-align:center; margin-bottom:20px;">
+        <h1 style="color:var(--gold); margin:0;">MIKE EDGE ADMIN</h1>
+        <p style="font-size:11px; color:#8B949E; margin-top:6px;">CONNECTÉ AU SERVEUR V12.2</p>
     </div>
 
-    <label class="label">Secteur / Catégorie :</label>
-    <select id="categorySelect">
-      <option value="ELITE_MONDIALE">🏆 Élite Mondiale / LDC</option>
-      <option value="FRANCE">🇫🇷 France (Ligue 1)</option>
-      <option value="ESPAGNE">🇪🇸 Espagne (La Liga)</option>
-      <option value="ANGLETERRE">🏴󠁧󠁢󠁥󠁮󠁧󠁿 Angleterre (Premier League)</option>
-      <option value="EUROPE">🇪🇺 Autres Championnats Europe</option>
-      <option value="MONDE">🌎 Reste du Monde (CSL, Amériques)</option>
-    </select>
+    <div class="card">
+        <label class="label">Clé Admin Secrète :</label>
+        <input type="password" id="adminKey" placeholder="Saisir votre clé..." autocomplete="off">
 
-    <label class="label">Fiche Telegram Brute :</label>
-    <textarea id="rawTextInput" placeholder="Coller la fiche ici..."></textarea>
+        <label class="label">Catégorie :</label>
+        <select id="categorySelect">
+            <option value="ELITE_MONDIALE">🏆 Élite Mondiale</option>
+            <option value="FRANCE">🇫🇷 France</option>
+            <option value="ESPAGNE">🇪🇸 Espagne</option>
+            <option value="ANGLETERRE">🏴󠁧󠁢󠁥󠁮󠁧󠁿 Angleterre</option>
+        </select>
 
-    <button class="btn btn-gold" onclick="verifySheet()">🔍 VÉRIFIER LA FICHE (PRÉ-CONTRÔLE)</button>
+        <label class="label">Fiche Telegram :</label>
+        <textarea id="rawText" placeholder="Coller la fiche ici..."></textarea>
 
-    <div id="previewBox" style="display: none; background: rgba(0,0,0,0.5); border-radius: 10px; padding: 12px; margin-top: 10px; border: 1px solid rgba(255,255,255,0.1);">
-      <div id="previewDetails" style="font-size: 12px; line-height: 1.5;"></div>
-      <button class="btn btn-emerald" id="publishSheetBtn" style="display: none; margin-top: 12px;" onclick="publishSector()">🚀 PUBLIER LE SECTEUR & ENVOYER</button>
-    </div>
-  </div>
+        <button class="btn btn-gold" id="testBtn" onclick="testConnection()">🔍 VÉRIFIER LA CONNEXION & LA CLÉ</button>
+        <div id="statusMsg" class="status"></div>
 
-  <!-- ========================================================== -->
-  <!-- 📦 BLOC 2 : KIOSQUE MAGAZINE HD                             -->
-  <!-- ========================================================== -->
-  <div class="card">
-    <div class="card-title">
-      <span>2. KIOSQUE MAGAZINE HD</span>
-      <span style="font-size: 10px; color: var(--gold-bright);">ALBUMS PHOTOS</span>
+        <button class="btn btn-emerald" id="publishBtn" style="display:none;" onclick="publishData()">🚀 PUBLIER</button>
     </div>
 
-    <label class="label">Titre de l'Album :</label>
-    <input type="text" id="magTitle" placeholder="Ex: Édition Spéciale Semaine 33">
-
-    <label class="label">Date d'Édition :</label>
-    <input type="date" id="magDate">
-
-    <label class="label">Couverture (9:16) :</label>
-    <input type="file" id="magCover" accept="image/*" style="padding: 8px; color: var(--text-muted);">
-
-    <label class="label">Pages Intérieures HD :</label>
-    <input type="file" id="magPages" accept="image/*" multiple style="padding: 8px; color: var(--text-muted);" onchange="handlePagesSelect(this)">
-
-    <div id="pageQueueContainer" style="display: none; margin-bottom: 12px;">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-        <span class="label" style="margin-bottom: 0;">📑 File d'attente :</span>
-        <span id="pageQueueCount" style="font-size: 11px; color: var(--gold); font-weight: 700;">0 page(s)</span>
-      </div>
-      <div id="pageQueueGrid" class="page-queue-grid"></div>
-      <button class="btn btn-outline-red" style="margin-top: 8px; padding: 10px; font-size: 12px;" onclick="clearPageQueue()">🗑 VIDER TOUTE LA FILE</button>
-    </div>
-
-    <div style="display: flex; gap: 8px;">
-      <button class="btn btn-gold" style="flex: 2;" onclick="saveMagazine()">💾 ENREGISTRER L'ALBUM</button>
-      <button class="btn" style="flex: 1; background: var(--alert-red); color: white;" onclick="deleteMagazine()">🗑 SUPPRIMER</button>
-    </div>
-  </div>
-
-  <!-- ========================================================== -->
-  <!-- 📦 BLOC 3 : INFO FLASH HD (Pop-up Plein Écran)              -->
-  <!-- ========================================================== -->
-  <div class="card">
-    <div class="card-title">
-      <span>3. INFO FLASH HD (POP-UP)</span>
-      <span style="font-size: 10px; color: var(--gold-bright);">EN DIRECT</span>
-    </div>
-
-    <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(13, 17, 23, 0.8); padding: 12px; border-radius: 10px; border: 1px solid var(--border-gold); margin-bottom: 12px;">
-      <div>
-        <span class="label" style="margin-bottom: 2px;">STATUT CHEZ LES ABONNÉS :</span>
-        <span id="flashStatusText" style="font-size: 11px; font-weight: 800; color: var(--emerald-success);">🟢 ACTIVÉ (VISIBLE)</span>
-      </div>
-      <button id="toggleFlashBtn" class="btn btn-emerald" style="width: auto; padding: 8px 14px; margin: 0; font-size: 12px;" onclick="toggleFlashStatus()">DÉSACTIVER</button>
-    </div>
-
-    <label class="label">Nouvelle Photo HD (9:16) :</label>
-    <input type="file" id="flashImageInput" accept="image/*" style="padding: 8px; color: var(--text-muted);">
-
-    <button class="btn btn-gold" onclick="uploadFlashInfo()">📤 PUBLIER LA NOUVELLE INFO FLASH</button>
-    <button class="btn btn-blue" onclick="sendFlashNotification()">🔔 NOTIFICATION PUSH URGENTE</button>
-  </div>
-
-  <!-- ========================================================== -->
-  <!-- 📦 BLOC 4 : TICKET DE SESSION HD (ÉCRAN 6)                  -->
-  <!-- ========================================================== -->
-  <div class="card">
-    <div class="card-title">
-      <span>4. TICKET DE SESSION HD (ÉCRAN 6)</span>
-      <span style="font-size: 10px; color: var(--gold-bright);">3 EN 1</span>
-    </div>
-
-    <label class="label">Sélectionner l'image HD 9:16 des 3 tickets :</label>
-    <input type="file" id="sessionTicketInput" accept="image/*" style="padding: 8px; color: var(--text-muted);">
-
-    <button class="btn btn-gold" onclick="uploadSessionTicket()">💾 PUBLIER L'AFFICHE DES 3 TICKETS HD</button>
-  </div>
-
-  <!-- ========================================================== -->
-  <!-- 📦 BLOC 5 : ANALYSES & RAPPORTS DE PARRAINAGE VRP           -->
-  <!-- ========================================================== -->
-  <div class="card">
-    <div class="card-title">
-      <span>5. ANALYSES & RAPPORTS DE PARRAINAGE VRP</span>
-      <span style="font-size: 10px; color: var(--diamond-cyan);">EN DIRECT</span>
-    </div>
-
-    <button class="btn btn-gold" onclick="loadVrpPerformance()">🔄 ACTUALISER LES STATISTIQUES DES VRPS</button>
-
-    <div id="vrpTableContainer" style="display: none; margin-top: 14px; overflow-x: auto;">
-      <table id="vrpTable">
-        <thead>
-          <tr>
-            <th>Code Agent</th>
-            <th>Zone</th>
-            <th>Abonnés Actifs</th>
-            <th>Cumul Temps Offert</th>
-          </tr>
-        </thead>
-        <tbody id="vrpTableBody"></tbody>
-      </table>
-    </div>
-  </div>
-
-  <script>
-    // ==================== CONFIGURATION OFFICIELLE ====================
-    const SUPABASE_URL = 'https://yntigkzalrqnjfjwxgzd.supabase.co';
-    const SUPABASE_ANON_KEY = 'sb_publishable_fDvGSVpaOFWV59StpXg-YQ_Vm3Vw1pt';
-    const API_BASE = 'https://mike-edge-backend.onrender.com/api/v1';
-
-    const { createClient } = supabase;
-    const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    let isFlashActive = true;
-    let selectedPages = []; 
-
-    // ==================== UTILITAIRES SÉCURITÉ ====================
-    function setLoading(isLoading, text) {
-      const overlay = document.getElementById('loadingOverlay');
-      document.getElementById('loadingText').innerText = text || 'TRAITEMENT EN COURS...';
-      overlay.style.display = isLoading ? 'flex' : 'none';
-    }
-
-    function getAdminKey() {
-      const key = document.getElementById('adminKeyInput').value.trim();
-      if (!key) throw new Error("Clé Admin requise. Tapez-la dans le champ du haut.");
-      return key;
-    }
-
-    function withAdminKey(callback) {
-      try {
-        const key = getAdminKey();
-        return callback(key);
-      } catch (err) {
-        alert("❌ " + err.message);
-        setLoading(false);
-      }
-    }
-
-    // ==================== BLOC 1 : PRONOSTICS ====================
-    function verifySheet() {
-      const text = document.getElementById('rawTextInput').value.trim();
-      const previewBox = document.getElementById('previewBox');
-      const previewDetails = document.getElementById('previewDetails');
-      const publishBtn = document.getElementById('publishSheetBtn');
-
-      if (!text) { alert("Veuillez coller une fiche."); return; }
-
-      previewBox.style.display = 'block';
-      const hasTeams = /vs|contre|match/i.test(text);
-
-      if (hasTeams) {
-        previewDetails.innerHTML = `
-          <p>✅ Structure Match : <span class="status-ok">VALIDE</span></p>
-          <p>📍 Secteur Cible : <span class="status-warn">${document.getElementById('categorySelect').value}</span></p>
-          <p style="color: var(--text-muted); margin-top: 6px;">Le Parser V11.14 extraira la catégorie depuis le texte brut.</p>
-        `;
-        publishBtn.style.display = 'block';
-      } else {
-        previewDetails.innerHTML = `<p class="status-err">❌ Format de fiche non reconnu (absence de "vs" ou "match").</p>`;
-        publishBtn.style.display = 'none';
-      }
-    }
-
-    async function publishSector() {
-      withAdminKey(async (adminKey) => {
-        const text = document.getElementById('rawTextInput').value.trim();
-        setLoading(true, 'IMPORT VERS LE BACKEND...');
-        try {
-          const response = await fetch(`${API_BASE}/import`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'x-admin-key': adminKey
-            },
-            body: JSON.stringify({ raw_text: text, user_id: 1 })
-          });
-          const result = await response.json();
-
-          if (response.ok && result.success) {
-            alert("🚀 SECTEUR PUBLIÉ AVEC SUCCÈS !\nPublication ID: " + result.data.publication_id);
-            document.getElementById('rawTextInput').value = '';
-            document.getElementById('previewBox').style.display = 'none';
-          } else {
-            alert("❌ Erreur Backend : " + (result.message || JSON.stringify(result.errors)));
-          }
-        } catch (err) {
-          alert("❌ Erreur réseau : " + err.message);
-        } finally {
-          setLoading(false);
-        }
-      });
-    }
-
-    // ==================== BLOC 2 : MAGAZINE ====================
-    function handlePagesSelect(input) {
-      const files = Array.from(input.files);
-      if (files.length === 0) return;
-
-      files.forEach(file => {
-        const exists = selectedPages.some(p => p.name === file.name && p.size === file.size);
-        if (!exists) selectedPages.push(file);
-      });
-
-      renderPageQueue();
-      input.value = '';
-    }
-
-    function renderPageQueue() {
-      const container = document.getElementById('pageQueueContainer');
-      const grid = document.getElementById('pageQueueGrid');
-      const countLabel = document.getElementById('pageQueueCount');
-
-      if (selectedPages.length === 0) {
-        container.style.display = 'none';
-        grid.innerHTML = '';
-        countLabel.innerText = '0 page(s)';
-        return;
-      }
-
-      container.style.display = 'block';
-      countLabel.innerText = `${selectedPages.length} page(s)`;
-
-      grid.innerHTML = '';
-      selectedPages.forEach((file, index) => {
-        const thumb = document.createElement('div');
-        thumb.className = 'page-thumb';
-
-        const img = document.createElement('img');
-        const objectUrl = URL.createObjectURL(file);
-        img.src = objectUrl;
-        img.alt = file.name;
-        img.onload = () => { setTimeout(() => URL.revokeObjectURL(objectUrl), 100); };
-
-        const numBadge = document.createElement('div');
-        numBadge.className = 'page-thumb-num';
-        numBadge.innerText = `P.${index + 1}`;
-
-        const removeBtn = document.createElement('button');
-        removeBtn.className = 'page-thumb-remove';
-        removeBtn.innerHTML = '✕';
-        removeBtn.title = 'Retirer cette page';
-        removeBtn.onclick = (e) => {
-          e.stopPropagation();
-          removePage(index);
-        };
-
-        thumb.appendChild(img);
-        thumb.appendChild(numBadge);
-        thumb.appendChild(removeBtn);
-        grid.appendChild(thumb);
-      });
-
-      const addSlot = document.createElement('div');
-      addSlot.className = 'page-thumb-empty';
-      addSlot.innerHTML = '+';
-      addSlot.onclick = () => document.getElementById('magPages').click();
-      grid.appendChild(addSlot);
-    }
-
-    function removePage(index) {
-      selectedPages.splice(index, 1);
-      renderPageQueue();
-    }
-
-    function clearPageQueue() {
-      if (selectedPages.length === 0) return;
-      if (!confirm(`🗑 Retirer les ${selectedPages.length} pages de la file ?`)) return;
-      selectedPages = [];
-      renderPageQueue();
-    }
-
-    async function saveMagazine() {
-      withAdminKey(async (adminKey) => {
-        const title = document.getElementById('magTitle').value.trim();
-        const date = document.getElementById('magDate').value;
-        const coverFile = document.getElementById('magCover').files[0];
-
-        if (!title || !date) { alert("Titre et date requis."); return; }
-        if (selectedPages.length === 0) { alert("Ajoutez au moins une page intérieure."); return; }
-
-        setLoading(true, `UPLOAD COUVERTURE + ${selectedPages.length} PAGES...`);
-        try {
-          let coverUrl = '';
-          if (coverFile) {
-            const fileName = `covers/${Date.now()}_${coverFile.name.replace(/\s+/g, '_')}`;
-            const { error: upErr } = await supabaseClient.storage.from('magazines').upload(fileName, coverFile);
-            if (upErr) throw upErr;
-            const { data: urlData } = supabaseClient.storage.from('magazines').getPublicUrl(fileName);
-            coverUrl = urlData.publicUrl;
-          }
-
-          const { data: mag, error: magErr } = await supabaseClient
-            .from('magazines')
-            .insert([{ title, edition_date: date, cover_url: coverUrl, is_active: true }])
-            .select('id')
-            .single();
-
-          if (magErr) throw magErr;
-          const magazineId = mag.id;
-
-          const pageInserts = [];
-          for (let i = 0; i < selectedPages.length; i++) {
-            const file = selectedPages[i];
-            const pageFileName = `pages/${magazineId}/${Date.now()}_p${i+1}_${file.name.replace(/\s+/g, '_')}`;
-            const { error: pUpErr } = await supabaseClient.storage.from('magazines').upload(pageFileName, file);
-            if (pUpErr) throw pUpErr;
-            const { data: pUrlData } = supabaseClient.storage.from('magazines').getPublicUrl(pageFileName);
-            pageInserts.push({
-              magazine_id: magazineId,
-              page_number: i + 1,
-              image_url: pUrlData.publicUrl
-            });
-          }
-
-          const { error: pagesErr } = await supabaseClient.from('magazine_pages').insert(pageInserts);
-          if (pagesErr) throw pagesErr;
-
-          alert(`💾 Album enregistré avec succès !\nID: ${magazineId}\nPages: ${selectedPages.length}`);
-
-          document.getElementById('magTitle').value = '';
-          document.getElementById('magDate').value = '';
-          document.getElementById('magCover').value = '';
-          selectedPages = [];
-          renderPageQueue();
-        } catch (err) {
-          alert("❌ Erreur Magazine : " + err.message);
-        } finally {
-          setLoading(false);
-        }
-      });
-    }
-
-    async function deleteMagazine() {
-      withAdminKey(async (adminKey) => {
-        const title = document.getElementById('magTitle').value.trim();
-
-        if (!title) { alert("Indiquez le titre exact de l'album à supprimer."); return; }
-        if (!confirm(`🗑 SUPPRIMER DÉFINITIVEMENT l'album "${title}" et toutes ses pages ?`)) return;
-
-        setLoading(true, 'SUPPRESSION EN CASCADE...');
-        try {
-          const { data: mag, error: findErr } = await supabaseClient
-            .from('magazines').select('id').eq('title', title).maybeSingle();
-
-          if (findErr) throw findErr;
-          if (!mag) throw new Error("Album non trouvé.");
-
-          await supabaseClient.from('magazine_pages').delete().eq('magazine_id', mag.id);
-          const { error: delErr } = await supabaseClient.from('magazines').delete().eq('id', mag.id);
-          if (delErr) throw delErr;
-
-          document.getElementById('magTitle').value = '';
-          alert("🗑️ Album et pages supprimés de la base.");
-        } catch (err) {
-          alert("❌ Erreur suppression : " + err.message);
-        } finally {
-          setLoading(false);
-        }
-      });
-    }
-
-    // ==================== BLOC 3 : FLASH INFO ====================
-    async function toggleFlashStatus() {
-      withAdminKey(async (adminKey) => {
-        setLoading(true, 'MISE À JOUR STATUT FLASH...');
-        try {
-          const { data: lastFlash, error: fetchErr } = await supabaseClient
-            .from('flash_infos')
-            .select('id')
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-
-          if (fetchErr) throw fetchErr;
-
-          const nextState = !isFlashActive;
-
-          if (lastFlash) {
-            const { error: updErr } = await supabaseClient
-              .from('flash_infos')
-              .update({ is_active: nextState })
-              .eq('id', lastFlash.id);
-            if (updErr) throw updErr;
-          } else {
-            alert("⚠️ Aucun flash existant en base. Créez d'abord un flash via le bouton PUBLIER.");
-            setLoading(false);
-            return;
-          }
-
-          isFlashActive = nextState;
-          const toggleBtn = document.getElementById('toggleFlashBtn');
-          const statusText = document.getElementById('flashStatusText');
-
-          if (isFlashActive) {
-            statusText.innerHTML = "🟢 ACTIVÉ (VISIBLE)";
-            statusText.style.color = "var(--emerald-success)";
-            toggleBtn.innerText = "DÉSACTIVER";
-            toggleBtn.className = "btn btn-emerald";
-            toggleBtn.style.background = "";
-            toggleBtn.style.color = "#000";
-          } else {
-            statusText.innerHTML = "⚪ DÉSACTIVÉ (MASQUÉ)";
-            statusText.style.color = "var(--text-muted)";
-            toggleBtn.innerText = "ACTIVER";
-            toggleBtn.className = "btn";
-            toggleBtn.style.background = "var(--text-muted)";
-            toggleBtn.style.color = "white";
-          }
-        } catch (err) {
-          alert("❌ Erreur statut : " + err.message);
-        } finally {
-          setLoading(false);
-        }
-      });
-    }
-
-    async function uploadFlashInfo() {
-      withAdminKey(async (adminKey) => {
-        const file = document.getElementById('flashImageInput').files[0];
-
-        if (!file) { alert("Sélectionnez une photo HD 9:16."); return; }
-
-        setLoading(true, 'PUBLICATION INFO FLASH...');
-        try {
-          const fileName = `flash/${Date.now()}_${file.name.replace(/\s+/g, '_')}`;
-          const { error: upErr } = await supabaseClient.storage.from('magazines').upload(fileName, file);
-          if (upErr) throw upErr;
-          const { data: urlData } = supabaseClient.storage.from('magazines').getPublicUrl(fileName);
-
-          const { error: dbErr } = await supabaseClient.from('flash_infos').insert([{
-            title: "Info Flash du Jour",
-            message: "Flash direct admin",
-            image_url: urlData.publicUrl,
-            is_active: isFlashActive
-          }]);
-
-          if (dbErr) throw dbErr;
-          alert("⚡ Info Flash HD publiée et persistée en base !");
-          document.getElementById('flashImageInput').value = '';
-        } catch (err) {
-          alert("❌ Erreur Flash : " + err.message);
-        } finally {
-          setLoading(false);
-        }
-      });
-    }
-
-    async function sendFlashNotification() {
-      withAdminKey(async (adminKey) => {
-        setLoading(true, 'ENVOI NOTIFICATION PUSH...');
-
-        try {
-          const response = await fetch(`${API_BASE}/notifications/push`, {
-            method: 'POST',
-            headers: { 
-              'Content-Type': 'application/json',
-              'x-admin-key': adminKey 
-            },
-            body: JSON.stringify({ 
-              title: "MIKE EDGE - ALERTE FLASH", 
-              body: "Nouvelle information en direct !", 
-              target: "all" 
-            })
-          });
-
-          if (response.status === 404) {
-            alert("⚠️ Route Push non encore déployée sur le serveur.\nL'info flash est en ligne, mais la notification push nécessite la mise à jour de server.js.");
-            return;
-          }
-
-          const result = await response.json();
-          if (response.ok && result.success) {
-            alert("📲 Notification Push envoyée à tous les abonnés !");
-          } else {
-            alert("❌ Erreur Push : " + (result.message || 'Refusé'));
-          }
-        } catch (err) {
-          alert("❌ Erreur réseau Push : " + err.message);
-        } finally {
-          setLoading(false);
-        }
-      });
-    }
-
-    // ==================== BLOC 4 : TICKET DE SESSION ====================
-    async function uploadSessionTicket() {
-      withAdminKey(async (adminKey) => {
-        const file = document.getElementById('sessionTicketInput').files[0];
-
-        if (!file) {
-          alert("Veuillez sélectionner l'image HD 9:16 des 3 tickets.");
-          return;
+    <script>
+        const API_URL = 'https://mike-edge-backend.onrender.com/api/v1';
+        const TIMEOUT_MS = 60000; // 60s pour cold-start Render
+
+        // Helper : fetch avec timeout
+        async function fetchWithTimeout(url, options = {}) {
+            const controller = new AbortController();
+            const id = setTimeout(() => controller.abort(), TIMEOUT_MS);
+            try {
+                const response = await fetch(url, { ...options, signal: controller.signal });
+                clearTimeout(id);
+                return response;
+            } catch (error) {
+                clearTimeout(id);
+                if (error.name === 'AbortError') {
+                    throw new Error('TIMEOUT');
+                }
+                throw error;
+            }
         }
 
-        setLoading(true, "TÉLÉVERSEMENT DU TICKET DE SESSION HD...");
-        try {
-          const fileName = `session_tickets/${Date.now()}_${file.name.replace(/\s+/g, '_')}`;
-          const { error: upErr } = await supabaseClient.storage.from('tickets').upload(fileName, file);
-          if (upErr) throw upErr;
-
-          const { data: urlData } = supabaseClient.storage.from('tickets').getPublicUrl(fileName);
-
-          const { error: dbErr } = await supabaseClient
-            .from('system_configs')
-            .upsert([
-              { key: 'session_ticket_url', value: urlData.publicUrl }
-            ], { onConflict: 'key' });
-
-          if (dbErr) throw dbErr;
-
-          alert(`🎉 SUCCÈS : L'affiche des 3 tickets HD (Écran 6) a été publiée avec succès !\nURL: ${urlData.publicUrl}`);
-          document.getElementById('sessionTicketInput').value = '';
-        } catch (err) {
-          alert("❌ Erreur de téléversement : " + err.message);
-        } finally {
-          setLoading(false);
+        // Helper : afficher un message
+        function showStatus(msg, type) {
+            const el = document.getElementById('statusMsg');
+            el.innerText = msg;
+            el.className = 'status ' + type;
         }
-      });
-    }
 
-    // ==================== BLOC 5 : SUIVI VRP SÉCURISÉ ====================
-    async function loadVrpPerformance() {
-      withAdminKey(async (adminKey) => {
-        setLoading(true, 'REQUÊTE STATS VRPS...');
-        try {
-          const { data: profiles, error: vrpErr } = await supabaseClient
-            .from('vrp_profiles')
-            .select('vrp_code, zone, user_id');
-
-          if (vrpErr) throw vrpErr;
-
-          const tableBody = document.getElementById('vrpTableBody');
-          tableBody.innerHTML = '';
-
-          if (profiles.length === 0) {
-            tableBody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">Aucun agent VRP enregistré en base.</td></tr>`;
-            document.getElementById('vrpTableContainer').style.display = 'block';
-            return;
-          }
-
-          for (const vrp of profiles) {
-            const { count, error: countErr } = await supabaseClient
-              .from('users')
-              .select('*', { count: 'exact', head: true })
-              .eq('referred_by_id', vrp.user_id)
-              .eq('status', 'ACTIVE');
-
-            if (countErr) throw countErr;
-
-            const totalPaidReferrals = count || 0;
-            const totalMonthsEarned = Math.min(3, Math.floor(totalPaidReferrals / 3)); 
-            const totalDaysEarned = totalMonthsEarned * 30;
-
-            const row = document.createElement('tr');
-            
-            // Sécurisation XSS DOM explicite (Correction ChatGPT)
-            const tdCode = document.createElement('td');
-            tdCode.style.color = 'var(--gold-bright)';
-            tdCode.style.fontWeight = 'bold';
-            tdCode.textContent = vrp.vrp_code;
-
-            const tdZone = document.createElement('td');
-            tdZone.textContent = vrp.zone || 'Sénégal';
-
-            const tdCount = document.createElement('td');
-            tdCount.className = 'status-ok';
-            tdCount.textContent = `${totalPaidReferrals} abonnés`;
-
-            const tdDays = document.createElement('td');
-            tdDays.style.color = 'var(--diamond-cyan)';
-            tdDays.style.fontWeight = 'bold';
-            tdDays.textContent = `+${totalDaysEarned} jours offerts`;
-
-            row.append(tdCode, tdZone, tdCount, tdDays);
-            tableBody.appendChild(row);
-          }
-
-          document.getElementById('vrpTableContainer').style.display = 'block';
-        } catch (err) {
-          alert("❌ Erreur Statistiques : " + err.message);
-        } finally {
-          setLoading(false);
+        // Helper : activer/désactiver un bouton
+        function setLoading(btnId, loading) {
+            const btn = document.getElementById(btnId);
+            btn.disabled = loading;
+            btn.style.opacity = loading ? '0.6' : '1';
         }
-      });
-    }
-  </script>
+
+        // ÉTAPE 1 : Tester la connexion
+        async function testConnection() {
+            const key = document.getElementById('adminKey').value.trim();
+            const status = document.getElementById('statusMsg');
+            const publishBtn = document.getElementById('publishBtn');
+
+            if (!key) {
+                showStatus('❌ Saisissez d\'abord votre clé admin.', 'err');
+                return;
+            }
+
+            setLoading('testBtn', true);
+            showStatus('⏳ Connexion au serveur... (peut prendre jusqu\'à 60s)', 'warn');
+            publishBtn.style.display = 'none';
+
+            try {
+                // On utilise un endpoint qui ne crée PAS de données (ex: /health ou /status)
+                // Si ton backend n'a pas d'endpoint health, utilise /import avec raw_text vide
+                // qui doit retourner une erreur de validation (422) si la clé est bonne
+                const response = await fetchWithTimeout(`${API_URL}/import`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'x-admin-key': key },
+                    body: JSON.stringify({ raw_text: '' }) // vide = validation error, pas d'insertion
+                });
+
+                if (response.status === 403) {
+                    showStatus('❌ Clé Admin incorrecte.', 'err');
+                } else if (response.status === 401) {
+                    showStatus('❌ Clé Admin manquante ou invalide.', 'err');
+                } else if (response.status === 422 || response.status === 400) {
+                    // 422/400 = validation error sur raw_text vide = le serveur a lu la clé et l'a acceptée
+                    showStatus('✅ CONNEXION OK — Clé acceptée !', 'ok');
+                    publishBtn.style.display = 'block';
+                } else if (response.ok) {
+                    // Si jamais le serveur accepte raw_text vide (étrange mais possible)
+                    showStatus('✅ CONNEXION OK — Clé acceptée !', 'ok');
+                    publishBtn.style.display = 'block';
+                } else {
+                    showStatus('⚠️ Erreur serveur : ' + response.status, 'err');
+                }
+            } catch (error) {
+                if (error.message === 'TIMEOUT') {
+                    showStatus('⏱️ DÉLAI DÉPASSÉ (60s). Le serveur Render démarre probablement. Réessayez dans 30s.', 'warn');
+                } else {
+                    showStatus('❌ SERVEUR INJOIGNABLE. Vérifiez votre connexion ou que Render est actif.', 'err');
+                }
+            } finally {
+                setLoading('testBtn', false);
+            }
+        }
+
+        // ÉTAPE 2 : Publier
+        async function publishData() {
+            const key = document.getElementById('adminKey').value.trim();
+            const text = document.getElementById('rawText').value.trim();
+            const cat = document.getElementById('categorySelect').value;
+
+            if (!text) {
+                showStatus('❌ La fiche Telegram est vide.', 'err');
+                return;
+            }
+
+            setLoading('publishBtn', true);
+            showStatus('⏳ Publication en cours...', 'warn');
+
+            try {
+                const response = await fetchWithTimeout(`${API_URL}/import`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'x-admin-key': key },
+                    body: JSON.stringify({ raw_text: text, category_override: cat })
+                });
+
+                const data = await response.json().catch(() => ({}));
+
+                if (response.ok && data.success) {
+                    showStatus('✅ FICHE PUBLIÉE AVEC SUCCÈS !', 'ok');
+                    document.getElementById('rawText').value = ''; // vider le champ
+                } else {
+                    const err = data.errors ? JSON.stringify(data.errors) : 'Erreur ' + response.status;
+                    showStatus('❌ ERREUR : ' + err, 'err');
+                }
+            } catch (error) {
+                if (error.message === 'TIMEOUT') {
+                    showStatus('⏱️ DÉLAI DÉPASSÉ. Le serveur met trop de temps à répondre. Réessayez.', 'warn');
+                } else {
+                    showStatus('❌ ERREUR RÉSEAU : ' + error.message, 'err');
+                }
+            } finally {
+                setLoading('publishBtn', false);
+            }
+        }
+    </script>
 </body>
-  </html>
+</html>
