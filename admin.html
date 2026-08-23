@@ -3,163 +3,62 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline' https://cdn.tailwindcss.com https://unpkg.com; style-src 'unsafe-inline' https://cdn.tailwindcss.com; connect-src 'self' https://yntigkzalrqnjfjwxgzd.supabase.co; img-src 'self' blob: https://*.supabase.co https://*.supabase.in;">
-<title>🎛️ COCKPIT ADMIN — MIKE EDGE V4.2</title>
+<title>🎛️ COCKPIT ADMIN — MIKE EDGE V4.3 DIAGNOSTIC</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <style>
-:root {
---gold: #D4AF37;
---gold-bright: #FFD700;
---bg-dark: #0D1117;
---bg-card: rgba(13, 17, 23, 0.92);
---bg-elevated: #161B22;
---emerald-success: #50C878;
---alert-red: #E0115F;
---text-primary: #F0F6FC;
---text-muted: #8B949E;
---border-gold: rgba(212, 175, 55, 0.3);
-}
-* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-body {
-background: var(--bg-dark);
-color: var(--text-primary);
-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-min-height: 100vh;
-padding: 12px;
-padding-bottom: 80px;
-}
-.card {
-background: var(--bg-card);
-border: 1px solid var(--border-gold);
-border-radius: 16px;
-padding: 16px;
-margin-bottom: 16px;
-backdrop-filter: blur(10px);
-}
-.card-title {
-font-size: 14px;
-font-weight: 800;
-color: var(--gold);
-letter-spacing: 0.5px;
-margin-bottom: 12px;
-display: flex;
-justify-content: space-between;
-align-items: center;
-border-bottom: 1px solid var(--border-gold);
-padding-bottom: 8px;
-}
-.label {
-font-size: 11px;
-font-weight: 700;
-color: var(--text-muted);
-text-transform: uppercase;
-margin-bottom: 6px;
-display: block;
-}
-.btn {
-width: 100%;
-padding: 14px;
-border: none;
-border-radius: 12px;
-font-weight: 800;
-font-size: 14px;
-text-transform: uppercase;
-cursor: pointer;
-transition: all 0.2s;
-margin-top: 10px;
-letter-spacing: 0.5px;
-position: relative;
-}
-.btn:active { transform: scale(0.98); }
-.btn:disabled { opacity: 0.6; cursor: not-allowed; }
-.btn-gold { background: linear-gradient(135deg, var(--gold), var(--gold-bright)); color: #000; }
-.btn-emerald { background: var(--emerald-success); color: #000; }
-.btn-blue { background: #0055FF; color: white; }
-.btn-outline-red { background: transparent; border: 1px solid var(--alert-red); color: var(--alert-red); }
-
-input[type="text"], input[type="date"], input[type="password"], input[type="file"], select, textarea {
-width: 100%;
-background: var(--bg-elevated);
-border: 1px solid var(--border-gold);
-border-radius: 10px;
-padding: 12px;
-color: var(--text-primary);
-font-size: 14px;
-margin-bottom: 10px;
-}
-textarea { min-height: 160px; font-family: monospace; font-size: 12px; }
-
-#connectionBanner {
-padding: 10px;
-border-radius: 10px;
-text-align: center;
-font-size: 12px;
-font-weight: 800;
-margin-bottom: 16px;
-border: 1px solid;
-}
-.conn-checking { background: rgba(255, 140, 0, 0.15); color: #FF8C00; border-color: #FF8C00; }
-.conn-online { background: rgba(80, 200, 120, 0.15); color: var(--emerald-success); border-color: var(--emerald-success); }
-.conn-offline { background: rgba(224, 17, 95, 0.15); color: var(--alert-red); border-color: var(--alert-red); }
-
-.status-ok { color: var(--emerald-success); font-weight: 700; }
-.status-err { color: var(--alert-red); font-weight: 700; }
-
-.page-queue-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-.page-thumb { position: relative; border-radius: 10px; overflow: hidden; border: 2px solid var(--border-gold); aspect-ratio: 9 / 16; background: var(--bg-elevated); }
-.page-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.page-thumb-num { position: absolute; top: 4px; left: 4px; background: rgba(0,0,0,0.75); color: var(--gold-bright); font-size: 10px; padding: 2px 7px; border-radius: 6px; }
-.page-thumb-remove { position: absolute; top: 4px; right: 4px; width: 24px; height: 24px; background: var(--alert-red); color: white; border: none; border-radius: 50%; font-size: 12px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
-th, td { border: 1px solid var(--border-gold); padding: 10px; text-align: left; }
-th { background-color: rgba(212, 175, 55, 0.1); color: var(--gold); }
-#loadingOverlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 9999; flex-direction: column; align-items: center; justify-content: center; }
-.spinner { width: 48px; height: 48px; border: 4px solid var(--border-gold); border-top-color: var(--gold-bright); border-radius: 50%; animation: spin 1s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
-#loadingOverlay p { margin-top: 16px; color: var(--gold); font-weight: 700; font-size: 14px; }
-
-#toast {
-position: fixed;
-bottom: 20px;
-left: 50%;
-transform: translateX(-50%);
-padding: 12px 20px;
-border-radius: 12px;
-font-size: 13px;
-font-weight: 700;
-z-index: 10000;
-display: none;
-max-width: 90%;
-text-align: center;
-}
-.toast-success { background: rgba(80, 200, 120, 0.2); color: var(--emerald-success); border: 1px solid var(--emerald-success); }
-.toast-error { background: rgba(224, 17, 95, 0.2); color: var(--alert-red); border: 1px solid var(--alert-red); }
+:root{--gold:#D4AF37;--gold-bright:#FFD700;--bg-dark:#0D1117;--bg-card:rgba(13,17,23,0.92);--bg-elevated:#161B22;--emerald-success:#50C878;--alert-red:#E0115F;--text-primary:#F0F6FC;--text-muted:#8B949E;--border-gold:rgba(212,175,55,0.3)}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:var(--bg-dark);color:var(--text-primary);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;min-height:100vh;padding:12px;padding-bottom:80px}
+.card{background:var(--bg-card);border:1px solid var(--border-gold);border-radius:16px;padding:16px;margin-bottom:16px;backdrop-filter:blur(10px)}
+.card-title{font-size:14px;font-weight:800;color:var(--gold);letter-spacing:0.5px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border-gold);padding-bottom:8px}
+.label{font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px;display:block}
+.btn{width:100%;padding:14px;border:none;border-radius:12px;font-weight:800;font-size:14px;text-transform:uppercase;cursor:pointer;transition:all 0.2s;margin-top:10px;letter-spacing:0.5px}
+.btn:active{transform:scale(0.98)}.btn:disabled{opacity:0.6;cursor:not-allowed}
+.btn-gold{background:linear-gradient(135deg,var(--gold),var(--gold-bright));color:#000}
+.btn-emerald{background:var(--emerald-success);color:#000}.btn-blue{background:#0055FF;color:white}
+input,select,textarea{width:100%;background:var(--bg-elevated);border:1px solid var(--border-gold);border-radius:10px;padding:12px;color:var(--text-primary);font-size:14px;margin-bottom:10px}
+textarea{min-height:160px;font-family:monospace;font-size:12px}
+#connectionBanner{padding:10px;border-radius:10px;text-align:center;font-size:12px;font-weight:800;margin-bottom:16px;border:1px solid;word-break:break-all}
+.conn-checking{background:rgba(255,140,0,0.15);color:#FF8C00;border-color:#FF8C00}
+.conn-online{background:rgba(80,200,120,0.15);color:var(--emerald-success);border-color:var(--emerald-success)}
+.conn-offline{background:rgba(224,17,95,0.15);color:var(--alert-red);border-color:var(--alert-red)}
+.status-ok{color:var(--emerald-success);font-weight:700}.status-err{color:var(--alert-red);font-weight:700}
+.page-queue-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.page-thumb{position:relative;border-radius:10px;overflow:hidden;border:2px solid var(--border-gold);aspect-ratio:9/16;background:var(--bg-elevated)}
+.page-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.page-thumb-num{position:absolute;top:4px;left:4px;background:rgba(0,0,0,0.75);color:var(--gold-bright);font-size:10px;padding:2px 7px;border-radius:6px}
+.page-thumb-remove{position:absolute;top:4px;right:4px;width:24px;height:24px;background:var(--alert-red);color:white;border:none;border-radius:50%;font-size:12px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+table{width:100%;border-collapse:collapse;margin-top:10px;font-size:12px}
+th,td{border:1px solid var(--border-gold);padding:10px;text-align:left}
+th{background-color:rgba(212,175,55,0.1);color:var(--gold)}
+#loadingOverlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;flex-direction:column;align-items:center;justify-content:center}
+.spinner{width:48px;height:48px;border:4px solid var(--border-gold);border-top-color:var(--gold-bright);border-radius:50%;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#loadingOverlay p{margin-top:16px;color:var(--gold);font-weight:700;font-size:14px}
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);padding:12px 20px;border-radius:12px;font-size:13px;font-weight:700;z-index:10000;display:none;max-width:90%;text-align:center}
+.toast-success{background:rgba(80,200,120,0.2);color:var(--emerald-success);border:1px solid var(--emerald-success)}
+.toast-error{background:rgba(224,17,95,0.2);color:var(--alert-red);border:1px solid var(--alert-red)}
 </style>
 </head>
 <body>
 
-<div id="loadingOverlay">
-<div class="spinner"></div>
-<p id="loadingText">TRAITEMENT EN COURS...</p>
-</div>
-
+<div id="loadingOverlay"><div class="spinner"></div><p id="loadingText">TRAITEMENT EN COURS...</p></div>
 <div id="toast"></div>
 
-<div style="text-align: center; margin-bottom: 16px; padding-top: 10px;">
-<h1 style="font-size: 20px; color: var(--gold); letter-spacing: 1px;">🎛️ COCKPIT ADMIN MIKE EDGE</h1>
-<p style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">V4.2 CORRIGÉE</p>
+<div style="text-align:center;margin-bottom:16px;padding-top:10px;">
+<h1 style="font-size:20px;color:var(--gold);letter-spacing:1px;">🎛️ COCKPIT ADMIN MIKE EDGE</h1>
+<p style="font-size:11px;color:var(--text-muted);margin-top:2px;">V4.3 DIAGNOSTIC — CSP SUPPRIMÉ</p>
+<p id="apiUrlDisplay" style="font-size:10px;color:#666;margin-top:4px;"></p>
 </div>
 
-<div id="connectionBanner" class="conn-checking">
-⏳ TEST DE CONNEXION AU SERVEUR RENDER...
-</div>
+<div id="connectionBanner" class="conn-checking">⏳ TEST CONNEXION...</div>
 
-<div class="card" style="background: rgba(212,175,55,0.05);">
+<div class="card" style="background:rgba(212,175,55,0.05);">
 <label class="label">🔐 Clé Admin Secrète :</label>
 <input type="password" id="adminKeyInput" placeholder="Saisir la clé secrète..." autocomplete="off">
-<button class="btn btn-blue" style="padding: 10px; font-size: 12px; margin-top: 6px;" onclick="testAdminKey()">🧪 TESTER LE MOT DE PASSE</button>
-<div id="authStatus" style="font-size: 11px; margin-top: 8px; font-weight: bold; text-align: center;"></div>
+<button class="btn btn-blue" style="padding:10px;font-size:12px;margin-top:6px;" onclick="testAdminKey()">🧪 TESTER LE MOT DE PASSE</button>
+<div id="authStatus" style="font-size:11px;margin-top:8px;font-weight:bold;text-align:center;"></div>
 </div>
 
 <div class="card">
@@ -176,9 +75,9 @@ text-align: center;
 <label class="label">Fiche Telegram Brute :</label>
 <textarea id="rawTextInput" placeholder="Coller la fiche ici..."></textarea>
 <button class="btn btn-gold" id="verifySheetBtn" onclick="verifySheet()">🔍 VÉRIFIER LA FICHE</button>
-<div id="previewBox" style="display: none; background: rgba(0,0,0,0.5); border-radius: 10px; padding: 12px; margin-top: 10px; border: 1px solid rgba(255,255,255,0.1);">
-<div id="previewDetails" style="font-size: 12px; line-height: 1.5;"></div>
-<button class="btn btn-emerald" id="publishSheetBtn" style="display: none; margin-top: 12px;" onclick="publishSector()">🚀 PUBLIER LE SECTEUR</button>
+<div id="previewBox" style="display:none;background:rgba(0,0,0,0.5);border-radius:10px;padding:12px;margin-top:10px;border:1px solid rgba(255,255,255,0.1);">
+<div id="previewDetails" style="font-size:12px;line-height:1.5;"></div>
+<button class="btn btn-emerald" id="publishSheetBtn" style="display:none;margin-top:12px;" onclick="publishSector()">🚀 PUBLIER LE SECTEUR</button>
 </div>
 </div>
 
@@ -186,9 +85,9 @@ text-align: center;
 <div class="card-title"><span>2. KIOSQUE MAGAZINE HD</span></div>
 <label class="label">Titre :</label><input type="text" id="magTitle" placeholder="Ex: Édition Spéciale">
 <label class="label">Date :</label><input type="date" id="magDate">
-<label class="label">Couverture :</label><input type="file" id="magCover" accept="image/*" style="padding: 8px; color: var(--text-muted);">
-<label class="label">Pages HD :</label><input type="file" id="magPages" accept="image/*" multiple style="padding: 8px; color: var(--text-muted);" onchange="handlePagesSelect(this)">
-<div id="pageQueueContainer" style="display: none; margin-bottom: 12px;">
+<label class="label">Couverture :</label><input type="file" id="magCover" accept="image/*" style="padding:8px;color:var(--text-muted);">
+<label class="label">Pages HD :</label><input type="file" id="magPages" accept="image/*" multiple style="padding:8px;color:var(--text-muted);" onchange="handlePagesSelect(this)">
+<div id="pageQueueContainer" style="display:none;margin-bottom:12px;">
 <span class="label" id="pageQueueCount">0 page(s)</span>
 <div id="pageQueueGrid" class="page-queue-grid"></div>
 </div>
@@ -197,326 +96,192 @@ text-align: center;
 
 <div class="card">
 <div class="card-title"><span>3. INFO FLASH HD</span></div>
-<div style="display: flex; align-items: center; justify-content: space-between; background: rgba(13, 17, 23, 0.8); padding: 12px; border-radius: 10px; border: 1px solid var(--border-gold); margin-bottom: 12px;">
+<div style="display:flex;align-items:center;justify-content:space-between;background:rgba(13,17,23,0.8);padding:12px;border-radius:10px;border:1px solid var(--border-gold);margin-bottom:12px;">
 <div>
-<span class="label" style="margin-bottom: 2px;">STATUT :</span>
-<span id="flashStatusText" style="font-size: 11px; font-weight: 800; color: var(--emerald-success);">🟢 ACTIVÉ</span>
+<span class="label" style="margin-bottom:2px;">STATUT :</span>
+<span id="flashStatusText" style="font-size:11px;font-weight:800;color:var(--emerald-success);">🟢 ACTIVÉ</span>
 </div>
-<button id="toggleFlashBtn" class="btn btn-emerald" style="width: auto; padding: 8px 14px; margin: 0; font-size: 12px;" onclick="toggleFlashStatus()">DÉSACTIVER</button>
+<button id="toggleFlashBtn" class="btn btn-emerald" style="width:auto;padding:8px 14px;margin:0;font-size:12px;" onclick="toggleFlashStatus()">DÉSACTIVER</button>
 </div>
-<label class="label">Nouvelle Photo HD (9:16) :</label><input type="file" id="flashImageInput" accept="image/*" style="padding: 8px; color: var(--text-muted);">
+<label class="label">Nouvelle Photo HD (9:16) :</label><input type="file" id="flashImageInput" accept="image/*" style="padding:8px;color:var(--text-muted);">
 <button class="btn btn-gold" id="uploadFlashBtn" onclick="uploadFlashInfo()">📤 PUBLIER L'INFO FLASH</button>
 </div>
 
 <div class="card">
 <div class="card-title"><span>4. TICKET DE SESSION HD</span></div>
-<label class="label">Image 9:16 :</label><input type="file" id="sessionTicketInput" accept="image/*" style="padding: 8px; color: var(--text-muted);">
+<label class="label">Image 9:16 :</label><input type="file" id="sessionTicketInput" accept="image/*" style="padding:8px;color:var(--text-muted);">
 <button class="btn btn-gold" id="uploadTicketBtn" onclick="uploadSessionTicket()">💾 PUBLIER LES TICKETS</button>
 </div>
 
 <div class="card">
 <div class="card-title"><span>5. STATISTIQUES VRP</span></div>
 <button class="btn btn-gold" id="loadVrpBtn" onclick="loadVrpPerformance()">🔄 ACTUALISER LES STATS VRP</button>
-<div id="vrpTableContainer" style="display: none; margin-top: 14px; overflow-x: auto;">
+<div id="vrpTableContainer" style="display:none;margin-top:14px;overflow-x:auto;">
 <table id="vrpTable"><thead><tr><th>Code</th><th>Zone</th><th>Abonnés</th><th>Temps</th></tr></thead><tbody id="vrpTableBody"></tbody></table>
 </div>
 </div>
 
 <script>
-const SUPABASE_URL = 'https://yntigkzalrqnjfjwxgzd.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_fDvGSVpaOFWV59StpXg-YQ_Vm3Vw1pt';
-const API_BASE = '/api/v1';
+var API_BASE = window.location.origin + '/api/v1';
+document.getElementById('apiUrlDisplay').textContent = 'API: ' + API_BASE;
 
-const { createClient } = supabase;
-const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-let isFlashActive = true;
-let selectedPages = [];
-const MAX_FILE_SIZE = 10 * 1024 * 1024;
+var SUPABASE_URL = 'https://yntigkzalrqnjfjwxgzd.supabase.co';
+var SUPABASE_ANON_KEY = 'sb_publishable_fDvGSVpaOFWV59StpXg-YQ_Vm3Vw1pt';
 
-function showToast(message, type) {
-    const toast = document.getElementById('toast');
-    toast.textContent = message;
-    toast.className = type === 'success' ? 'toast-success' : 'toast-error';
-    toast.style.display = 'block';
-    setTimeout(function() { toast.style.display = 'none'; }, 4000);
-}
+var supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+var isFlashActive = true;
+var selectedPages = [];
+var pageObjectUrls = [];
+var MAX_FILE_SIZE = 10 * 1024 * 1024;
 
-function validateImageFile(file) {
-    if (!file) return "Aucun fichier sélectionné.";
-    if (!file.type.startsWith('image/')) return "Le fichier doit être une image.";
-    if (file.size > MAX_FILE_SIZE) return "Fichier trop lourd (max 10 Mo).";
-    return null;
-}
+function showToast(msg, type){var t=document.getElementById('toast');t.textContent=msg;t.className=type==='success'?'toast-success':'toast-error';t.style.display='block';setTimeout(function(){t.style.display='none'},4000)}
+function validateImageFile(f){if(!f)return"Aucun fichier.";if(!f.type.startsWith('image/'))return"Ce n'est pas une image.";if(f.size>MAX_FILE_SIZE)return"Fichier trop lourd (max 10Mo).";return null}
 
-window.addEventListener('DOMContentLoaded', async function() {
-    const banner = document.getElementById('connectionBanner');
-    try {
-        const res = await fetch(API_BASE + '/magazines', { method: 'GET' });
-        if (res.ok) {
-            banner.className = 'conn-online';
-            banner.textContent = '🟢 SERVEUR CONNECTÉ';
-        } else {
-            throw new Error("HTTP " + res.status);
+// TEST CONNEXION AVEC ERREUR EXACTE AFFICHÉE
+window.addEventListener('DOMContentLoaded',async function(){
+    var banner=document.getElementById('connectionBanner');
+    try{
+        var res=await fetch(API_BASE+'/magazines',{method:'GET'});
+        if(res.ok){
+            banner.className='conn-online';
+            banner.textContent='🟢 CONNECTÉ';
+        }else{
+            banner.className='conn-offline';
+            banner.textContent='🔴 ERREUR HTTP '+res.status;
         }
-    } catch (err) {
-        banner.className = 'conn-offline';
-        banner.textContent = '🔴 SERVEUR INJOIGNABLE';
+    }catch(err){
+        banner.className='conn-offline';
+        // AFFICHE LE VRAI MESSAGE D'ERREUR
+        banner.textContent='🔴 '+err.name+': '+err.message;
     }
 });
 
-function setLoading(isLoading, text) {
-    document.getElementById('loadingText').textContent = text || 'TRAITEMENT EN COURS...';
-    document.getElementById('loadingOverlay').style.display = isLoading ? 'flex' : 'none';
-    const btns = ['verifySheetBtn','publishSheetBtn','saveMagBtn','toggleFlashBtn','uploadFlashBtn','uploadTicketBtn','loadVrpBtn'];
-    btns.forEach(function(id) {
-        const b = document.getElementById(id);
-        if (b) b.disabled = isLoading;
+function setLoading(on,text){
+    document.getElementById('loadingText').textContent=text||'TRAITEMENT...';
+    document.getElementById('loadingOverlay').style.display=on?'flex':'none';
+    var btns=['verifySheetBtn','publishSheetBtn','saveMagBtn','toggleFlashBtn','uploadFlashBtn','uploadTicketBtn','loadVrpBtn'];
+    btns.forEach(function(id){var b=document.getElementById(id);if(b)b.disabled=on});
+}
+
+function getAdminKey(){var k=document.getElementById('adminKeyInput').value.trim();if(!k)throw new Error("Saisissez la clé admin !");return k}
+
+async function testAdminKey(){
+    var s=document.getElementById('authStatus');
+    try{var k=getAdminKey();s.textContent="Test...";s.style.color="#FF8C00";
+        var r=await fetch(API_BASE+'/import',{method:'POST',headers:{'Content-Type':'application/json','x-admin-key':k},body:JSON.stringify({raw_text:''})});
+        if(r.status===403||r.status===401){s.textContent="❌ Clé incorrecte";s.style.color="var(--alert-red)"}
+        else{s.textContent="✅ Clé valide";s.style.color="var(--emerald-success)"}
+    }catch(e){s.textContent="❌ "+e.name+": "+e.message;s.style.color="var(--alert-red)"}
+}
+
+function verifySheet(){
+    var text=document.getElementById('rawTextInput').value.trim();
+    var box=document.getElementById('previewBox'),det=document.getElementById('previewDetails'),btn=document.getElementById('publishSheetBtn');
+    if(!text){showToast("Collez une fiche.");return}
+    box.style.display='block';det.innerHTML='';
+    if(/vs|contre|match/i.test(text)){
+        var p=document.createElement('p');p.innerHTML='✅ Structure : <span class="status-ok">VALIDE</span>';det.appendChild(p);btn.style.display='block';
+    }else{var p=document.createElement('p');p.className='status-err';p.textContent='❌ Format non reconnu.';det.appendChild(p);btn.style.display='none';}
+}
+
+async function publishSector(){
+    var text=document.getElementById('rawTextInput').value.trim(),adminKey;
+    try{adminKey=getAdminKey()}catch(e){showToast(e.message);return}
+    setLoading(true,'PUBLICATION...');
+    try{
+        var r=await fetch(API_BASE+'/import',{method:'POST',headers:{'Content-Type':'application/json','x-admin-key':adminKey},body:JSON.stringify({raw_text:text,user_id:1,category_override:document.getElementById('categorySelect').value})});
+        var j=await r.json();
+        if(r.ok&&j.success){showToast("🚀 Publié ! ID: "+j.data.publication_id,'success');document.getElementById('rawTextInput').value='';document.getElementById('previewBox').style.display='none'}
+        else{showToast("Erreur: "+(j.message||JSON.stringify(j.errors)))}
+    }catch(e){showToast("Réseau: "+e.name+": "+e.message)}finally{setLoading(false)}
+}
+
+function handlePagesSelect(input){
+    var files=Array.from(input.files);if(!files.length)return;
+    for(var i=0;i<files.length;i++){var e=validateImageFile(files[i]);if(e){showToast(e);input.value='';return}}
+    files.forEach(function(f){selectedPages.push(f)});renderPageQueue();input.value='';
+}
+
+function renderPageQueue(){
+    var c=document.getElementById('pageQueueContainer'),g=document.getElementById('pageQueueGrid');
+    pageObjectUrls.forEach(function(u){URL.revokeObjectURL(u)});pageObjectUrls=[];
+    if(!selectedPages.length){c.style.display='none';return}
+    c.style.display='block';document.getElementById('pageQueueCount').textContent=selectedPages.length+' page(s)';g.innerHTML='';
+    selectedPages.forEach(function(file,idx){
+        var thumb=document.createElement('div');thumb.className='page-thumb';
+        var img=document.createElement('img');var url=URL.createObjectURL(file);pageObjectUrls.push(url);img.src=url;
+        var badge=document.createElement('div');badge.className='page-thumb-num';badge.textContent='P.'+(idx+1);
+        var rm=document.createElement('button');rm.className='page-thumb-remove';rm.textContent='✕';rm.onclick=function(){selectedPages.splice(idx,1);renderPageQueue()};
+        thumb.appendChild(img);thumb.appendChild(badge);thumb.appendChild(rm);g.appendChild(thumb);
     });
 }
 
-function getAdminKey() {
-    const key = document.getElementById('adminKeyInput').value.trim();
-    if (!key) throw new Error("Saisissez la Clé Admin Secrète !");
-    return key;
+async function saveMagazine(){
+    var title=document.getElementById('magTitle').value.trim(),date=document.getElementById('magDate').value,cover=document.getElementById('magCover').files[0],adminKey;
+    try{adminKey=getAdminKey()}catch(e){showToast(e.message);return}
+    if(!title||!date){showToast("Titre et date requis.");return}
+    if(!selectedPages.length){showToast("Ajoutez des pages.");return}
+    if(cover){var e=validateImageFile(cover);if(e){showToast(e);return}}
+    setLoading(true,'UPLOAD...');
+    try{
+        var coverUrl='';
+        if(cover){var fn='covers/'+Date.now()+'_'+cover.name;await supabaseClient.storage.from('magazines').upload(fn,cover);var d=supabaseClient.storage.from('magazines').getPublicUrl(fn);coverUrl=d.data.publicUrl}
+        var mag=await supabaseClient.from('magazines').insert([{title:title,edition_date:date,cover_url:coverUrl,is_active:true}]).select('id').single();
+        if(mag.error||!mag.data)throw new Error(mag.error?.message||"Échec");
+        for(var i=0;i<selectedPages.length;i++){var f=selectedPages[i];var pn='pages/'+mag.data.id+'/'+Date.now()+'_p'+(i+1)+'_'+f.name;await supabaseClient.storage.from('magazines').upload(pn,f);var pd=supabaseClient.storage.from('magazines').getPublicUrl(pn);await supabaseClient.from('magazine_pages').insert([{magazine_id:mag.data.id,page_number:i+1,image_url:pd.data.publicUrl}])}
+        showToast("💾 Album enregistré !",'success');selectedPages=[];renderPageQueue();document.getElementById('magTitle').value='';document.getElementById('magDate').value='';document.getElementById('magCover').value='';
+    }catch(e){showToast("Erreur: "+e.message)}finally{setLoading(false)}
 }
 
-async function testAdminKey() {
-    const status = document.getElementById('authStatus');
-    try {
-        const key = getAdminKey();
-        status.textContent = "Test en cours...";
-        status.style.color = "#FF8C00";
-        const res = await fetch(API_BASE + '/import', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-admin-key': key },
-            body: JSON.stringify({ raw_text: '' })
-        });
-        if (res.status === 403 || res.status === 401) {
-            status.textContent = "Clé Admin INCORRECTE";
-            status.style.color = "var(--alert-red)";
-        } else {
-            status.textContent = "Clé Admin VALIDE !";
-            status.style.color = "var(--emerald-success)";
-        }
-    } catch (err) {
-        status.textContent = "Erreur : " + err.message;
-        status.style.color = "var(--alert-red)";
-    }
+async function toggleFlashStatus(){
+    var adminKey;try{adminKey=getAdminKey()}catch(e){showToast(e.message);return}
+    setLoading(true,'MISE À JOUR...');
+    try{
+        var latest=await supabaseClient.from('flash_infos').select('id,is_active').order('created_at',{ascending:false}).limit(1).single();
+        if(latest.error||!latest.data){showToast("Aucun flash.");setLoading(false);return}
+        var ns=!latest.data.is_active;await supabaseClient.from('flash_infos').update({is_active:ns}).eq('id',latest.data.id);isFlashActive=ns;
+        var st=document.getElementById('flashStatusText'),tb=document.getElementById('toggleFlashBtn');
+        if(isFlashActive){st.textContent="🟢 ACTIVÉ";st.style.color="var(--emerald-success)";tb.textContent="DÉSACTIVER"}
+        else{st.textContent="⚪ DÉSACTIVÉ";st.style.color="var(--text-muted)";tb.textContent="ACTIVER"}
+    }catch(e){showToast("Erreur: "+e.message)}finally{setLoading(false)}
 }
 
-function verifySheet() {
-    const text = document.getElementById('rawTextInput').value.trim();
-    const previewBox = document.getElementById('previewBox');
-    const previewDetails = document.getElementById('previewDetails');
-    const publishBtn = document.getElementById('publishSheetBtn');
-    if (!text) { showToast("Veuillez coller une fiche."); return; }
-    previewBox.style.display = 'block';
-    previewDetails.innerHTML = '';
-    const hasTeams = /vs|contre|match/i.test(text);
-    if (hasTeams) {
-        const p = document.createElement('p');
-        p.innerHTML = 'Structure Match : <span class="status-ok">VALIDE</span>';
-        previewDetails.appendChild(p);
-        publishBtn.style.display = 'block';
-    } else {
-        const p = document.createElement('p');
-        p.className = 'status-err';
-        p.textContent = 'Format non reconnu.';
-        previewDetails.appendChild(p);
-        publishBtn.style.display = 'none';
-    }
+async function uploadFlashInfo(){
+    var file=document.getElementById('flashImageInput').files[0],adminKey;
+    try{adminKey=getAdminKey()}catch(e){showToast(e.message);return}
+    var e=validateImageFile(file);if(e){showToast(e);return}
+    setLoading(true,'PUBLICATION FLASH...');
+    try{
+        await supabaseClient.from('flash_infos').update({is_active:false}).eq('is_active',true);
+        var fn='flash/'+Date.now()+'_'+file.name;await supabaseClient.storage.from('magazines').upload(fn,file);var d=supabaseClient.storage.from('magazines').getPublicUrl(fn);
+        await supabaseClient.from('flash_infos').insert([{title:"Info Flash",message:"Flash direct",image_url:d.data.publicUrl,is_active:true}]);
+        showToast("⚡ Flash publié !",'success');document.getElementById('flashImageInput').value='';
+    }catch(e){showToast("Erreur: "+e.message)}finally{setLoading(false)}
 }
 
-async function publishSector() {
-    const text = document.getElementById('rawTextInput').value.trim();
-    let adminKey;
-    try { adminKey = getAdminKey(); } catch (err) { showToast(err.message); return; }
-    setLoading(true, 'PUBLICATION...');
-    try {
-        const response = await fetch(API_BASE + '/import', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-admin-key': adminKey },
-            body: JSON.stringify({ raw_text: text, user_id: 1, category_override: document.getElementById('categorySelect').value })
-        });
-        const result = await response.json();
-        if (response.ok && result.success) {
-            showToast("SUCCÈS : Fiche publiée ! ID: " + result.data.publication_id, 'success');
-            document.getElementById('rawTextInput').value = '';
-            document.getElementById('previewBox').style.display = 'none';
-        } else {
-            showToast("Erreur Serveur : " + (result.message || JSON.stringify(result.errors)));
-        }
-    } catch (err) {
-        showToast("Erreur Réseau : " + err.message);
-    } finally { setLoading(false); }
+async function uploadSessionTicket(){
+    var file=document.getElementById('sessionTicketInput').files[0],adminKey;
+    try{adminKey=getAdminKey()}catch(e){showToast(e.message);return}
+    var e=validateImageFile(file);if(e){showToast(e);return}
+    setLoading(true,"TÉLÉVERSEMENT...");
+    try{
+        var fn='session_tickets/'+Date.now()+'_'+file.name;await supabaseClient.storage.from('tickets').upload(fn,file);var d=await supabaseClient.storage.from('tickets').getPublicUrl(fn);
+        await supabaseClient.from('system_configs').upsert([{key:'session_ticket_url',value:d.data.publicUrl}],{onConflict:'key'});
+        showToast("🎉 Ticket publié !",'success');document.getElementById('sessionTicketInput').value='';
+    }catch(e){showToast("Erreur: "+e.message)}finally{setLoading(false)}
 }
 
-function handlePagesSelect(input) {
-    const files = Array.from(input.files);
-    if (files.length === 0) return;
-    for (let i = 0; i < files.length; i++) {
-        const err = validateImageFile(files[i]);
-        if (err) { showToast(err); input.value = ''; return; }
-    }
-    files.forEach(function(file) { selectedPages.push(file); });
-    renderPageQueue();
-    input.value = '';
-}
-
-let pageObjectUrls = [];
-
-function renderPageQueue() {
-    const container = document.getElementById('pageQueueContainer');
-    const grid = document.getElementById('pageQueueGrid');
-    pageObjectUrls.forEach(function(url) { URL.revokeObjectURL(url); });
-    pageObjectUrls = [];
-    if (selectedPages.length === 0) { container.style.display = 'none'; return; }
-    container.style.display = 'block';
-    document.getElementById('pageQueueCount').textContent = selectedPages.length + ' page(s)';
-    grid.innerHTML = '';
-    selectedPages.forEach(function(file, index) {
-        const thumb = document.createElement('div');
-        thumb.className = 'page-thumb';
-        const img = document.createElement('img');
-        const objUrl = URL.createObjectURL(file);
-        pageObjectUrls.push(objUrl);
-        img.src = objUrl;
-        const badge = document.createElement('div');
-        badge.className = 'page-thumb-num';
-        badge.textContent = 'P.' + (index + 1);
-        const removeBtn = document.createElement('button');
-        removeBtn.className = 'page-thumb-remove';
-        removeBtn.textContent = '✕';
-        removeBtn.onclick = function() { selectedPages.splice(index, 1); renderPageQueue(); };
-        thumb.appendChild(img); thumb.appendChild(badge); thumb.appendChild(removeBtn);
-        grid.appendChild(thumb);
-    });
-}
-
-async function saveMagazine() {
-    const title = document.getElementById('magTitle').value.trim();
-    const date = document.getElementById('magDate').value;
-    const coverFile = document.getElementById('magCover').files[0];
-    let adminKey;
-    try { adminKey = getAdminKey(); } catch (err) { showToast(err.message); return; }
-    if (!title || !date) { showToast("Titre et date requis."); return; }
-    if (selectedPages.length === 0) { showToast("Ajoutez des pages."); return; }
-    if (coverFile) {
-        const err = validateImageFile(coverFile);
-        if (err) { showToast(err); return; }
-    }
-    setLoading(true, 'UPLOAD ALBUM...');
-    try {
-        let coverUrl = '';
-        if (coverFile) {
-            const fileName = 'covers/' + Date.now() + '_' + coverFile.name;
-            await supabaseClient.storage.from('magazines').upload(fileName, coverFile);
-            const d = supabaseClient.storage.from('magazines').getPublicUrl(fileName);
-            coverUrl = d.data.publicUrl;
-        }
-        const mag = await supabaseClient.from('magazines').insert([{ title: title, edition_date: date, cover_url: coverUrl, is_active: true }]).select('id').single();
-        if (mag.error || !mag.data) throw new Error(mag.error?.message || "Échec création magazine");
-        for (let i = 0; i < selectedPages.length; i++) {
-            const file = selectedPages[i];
-            const pName = 'pages/' + mag.data.id + '/' + Date.now() + '_p' + (i+1) + '_' + file.name;
-            await supabaseClient.storage.from('magazines').upload(pName, file);
-            const pData = supabaseClient.storage.from('magazines').getPublicUrl(pName);
-            await supabaseClient.from('magazine_pages').insert([{ magazine_id: mag.data.id, page_number: i + 1, image_url: pData.data.publicUrl }]);
-        }
-        showToast("Album enregistré !", 'success');
-        selectedPages = []; renderPageQueue();
-        document.getElementById('magTitle').value = '';
-        document.getElementById('magDate').value = '';
-        document.getElementById('magCover').value = '';
-    } catch (err) { showToast("Erreur : " + err.message); } finally { setLoading(false); }
-}
-
-async function toggleFlashStatus() {
-    let adminKey;
-    try { adminKey = getAdminKey(); } catch (err) { showToast(err.message); return; }
-    setLoading(true, 'MISE À JOUR STATUT FLASH...');
-    try {
-        const latest = await supabaseClient.from('flash_infos').select('id, is_active').order('created_at', { ascending: false }).limit(1).single();
-        if (latest.error || !latest.data) { showToast("Aucun flash trouvé."); setLoading(false); return; }
-        const newStatus = !latest.data.is_active;
-        await supabaseClient.from('flash_infos').update({ is_active: newStatus }).eq('id', latest.data.id);
-        isFlashActive = newStatus;
-        const statusText = document.getElementById('flashStatusText');
-        const toggleBtn = document.getElementById('toggleFlashBtn');
-        if (isFlashActive) { 
-            statusText.textContent = "🟢 ACTIVÉ"; statusText.style.color = "var(--emerald-success)"; toggleBtn.textContent = "DÉSACTIVER"; 
-        } else { 
-            statusText.textContent = "⚪ DÉSACTIVÉ"; statusText.style.color = "var(--text-muted)"; toggleBtn.textContent = "ACTIVER"; 
-        }
-    } catch (err) { showToast("Erreur : " + err.message); } finally { setLoading(false); }
-}
-
-async function uploadFlashInfo() {
-    const file = document.getElementById('flashImageInput').files[0];
-    let adminKey;
-    try { adminKey = getAdminKey(); } catch (err) { showToast(err.message); return; }
-    const err = validateImageFile(file);
-    if (err) { showToast(err); return; }
-    setLoading(true, 'PUBLICATION FLASH...');
-    try {
-        await supabaseClient.from('flash_infos').update({ is_active: false }).eq('is_active', true);
-        const fileName = 'flash/' + Date.now() + '_' + file.name;
-        await supabaseClient.storage.from('magazines').upload(fileName, file);
-        const d = supabaseClient.storage.from('magazines').getPublicUrl(fileName);
-        await supabaseClient.from('flash_infos').insert([{ title: "Info Flash", message: "Flash direct", image_url: d.data.publicUrl, is_active: true }]);
-        showToast("Info Flash publiée !", 'success');
-        document.getElementById('flashImageInput').value = '';
-    } catch (err) { showToast("Erreur : " + err.message); } finally { setLoading(false); }
-}
-
-async function uploadSessionTicket() {
-    const file = document.getElementById('sessionTicketInput').files[0];
-    let adminKey;
-    try { adminKey = getAdminKey(); } catch (err) { showToast(err.message); return; }
-    const err = validateImageFile(file);
-    if (err) { showToast(err); return; }
-    setLoading(true, "TÉLÉVERSEMENT...");
-    try {
-        const fileName = 'session_tickets/' + Date.now() + '_' + file.name;
-        await supabaseClient.storage.from('tickets').upload(fileName, file);
-        const d = await supabaseClient.storage.from('tickets').getPublicUrl(fileName);
-        await supabaseClient.from('system_configs').upsert([{ key: 'session_ticket_url', value: d.data.publicUrl }], { onConflict: 'key' });
-        showToast("Ticket publié !", 'success');
-        document.getElementById('sessionTicketInput').value = '';
-    } catch (err) { showToast("Erreur : " + err.message); } finally { setLoading(false); }
-}
-
-async function loadVrpPerformance() {
-    let adminKey;
-    try { adminKey = getAdminKey(); } catch (err) { showToast(err.message); return; }
-    setLoading(true, 'STATS VRP...');
-    try {
-        const response = await fetch(API_BASE + '/vrp/stats', { method: 'GET', headers: { 'x-admin-key': adminKey } });
-        const result = await response.json();
-        if (!response.ok || !result.success) throw new Error(result.message || "Échec stats VRP");
-        const tableBody = document.getElementById('vrpTableBody');
-        tableBody.innerHTML = '';
-        const profiles = result.data;
-        if (!profiles || profiles.length === 0) {
-            const row = document.createElement('tr');
-            const td = document.createElement('td');
-            td.colSpan = 4; td.style.textAlign = 'center';
-            td.textContent = 'Aucun agent VRP enregistré.';
-            row.appendChild(td); tableBody.appendChild(row);
-        } else {
-            profiles.forEach(function(vrp) {
-                const row = document.createElement('tr');
-                const tdCode = document.createElement('td'); tdCode.style.color = 'var(--gold-bright)'; tdCode.textContent = vrp.vrp_code;
-                const tdZone = document.createElement('td'); tdZone.textContent = vrp.zone;
-                const tdSubs = document.createElement('td'); tdSubs.textContent = vrp.active_subscribers;
-                const tdTime = document.createElement('td'); tdTime.textContent = '+' + vrp.earned_days + ' jours';
-                row.appendChild(tdCode); row.appendChild(tdZone); row.appendChild(tdSubs); row.appendChild(tdTime);
-                tableBody.appendChild(row);
-            });
-        }
-        document.getElementById('vrpTableContainer').style.display = 'block';
-        showToast("Stats VRP actualisées", "success");
-    } catch (err) { showToast("Erreur : " + err.message); } finally { setLoading(false); }
+async function loadVrpPerformance(){
+    var adminKey;try{adminKey=getAdminKey()}catch(e){showToast(e.message);return}
+    setLoading(true,'STATS VRP...');
+    try{
+        var r=await fetch(API_BASE+'/vrp/stats',{method:'GET',headers:{'x-admin-key':adminKey}});var j=await r.json();
+        if(!r.ok||!j.success)throw new Error(j.message||"Échec stats");
+        var tb=document.getElementById('vrpTableBody');tb.innerHTML='';
+        if(!j.data||!j.data.length){var row=document.createElement('tr');var td=document.createElement('td');td.colSpan=4;td.style.textAlign='center';td.textContent='Aucun VRP.';row.appendChild(td);tb.appendChild(row)}
+        else{j.data.forEach(function(v){var row=document.createElement('tr');var c=document.createElement('td');c.style.color='var(--gold-bright)';c.textContent=v.vrp_code;var z=document.createElement('td');z.textContent=v.zone;var s=document.createElement('td');s.textContent=v.active_subscribers;var t=document.createElement('td');t.textContent='+'+v.earned_days+' jours';row.appendChild(c);row.appendChild(z);row.appendChild(s);row.appendChild(t);tb.appendChild(row)})}
+        document.getElementById('vrpTableContainer').style.display='block';showToast("Stats actualisées",'success');
+    }catch(e){showToast("Erreur: "+e.name+": "+e.message)}finally{setLoading(false)}
 }
 </script>
 </body>
