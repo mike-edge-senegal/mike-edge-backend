@@ -90,7 +90,6 @@ margin-bottom: 10px;
 }
 textarea { min-height: 160px; font-family: monospace; font-size: 12px; }
 
-/* VOYANT DE CONNEXION */
 #connectionBanner {
 padding: 10px;
 border-radius: 10px;
@@ -120,7 +119,6 @@ th { background-color: rgba(212, 175, 55, 0.1); color: var(--gold); }
 @keyframes spin { to { transform: rotate(360deg); } }
 #loadingOverlay p { margin-top: 16px; color: var(--gold); font-weight: 700; font-size: 14px; }
 
-/* TOAST NOTIFICATION */
 #toast {
 position: fixed;
 bottom: 20px;
@@ -148,18 +146,15 @@ text-align: center;
 
 <div id="toast"></div>
 
-<!-- HEADER -->
 <div style="text-align: center; margin-bottom: 16px; padding-top: 10px;">
 <h1 style="font-size: 20px; color: var(--gold); letter-spacing: 1px;">🎛️ COCKPIT ADMIN MIKE EDGE</h1>
 <p style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">V4.1 DÉFINITIVE & SCELLÉE</p>
 </div>
 
-<!-- VOYANT DE CONNEXION EN DIRECT -->
 <div id="connectionBanner" class="conn-checking">
 ⏳ TEST DE CONNEXION AU SERVEUR RENDER...
 </div>
 
-<!-- AUTHENTIFICATION -->
 <div class="card" style="background: rgba(212,175,55,0.05);">
 <label class="label">🔐 Clé Admin Secrète :</label>
 <input type="password" id="adminKeyInput" placeholder="Saisir la clé secrète..." autocomplete="off">
@@ -167,7 +162,6 @@ text-align: center;
 <div id="authStatus" style="font-size: 11px; margin-top: 8px; font-weight: bold; text-align: center;"></div>
 </div>
 
-<!-- BLOC 1 : PRONOSTICS -->
 <div class="card">
 <div class="card-title"><span>1. SAISIE DES PRONOSTICS</span></div>
 <label class="label">Secteur / Catégorie :</label>
@@ -188,7 +182,6 @@ text-align: center;
 </div>
 </div>
 
-<!-- BLOC 2 : MAGAZINE -->
 <div class="card">
 <div class="card-title"><span>2. KIOSQUE MAGAZINE HD</span></div>
 <label class="label">Titre :</label><input type="text" id="magTitle" placeholder="Ex: Édition Spéciale">
@@ -202,7 +195,6 @@ text-align: center;
 <button class="btn btn-gold" id="saveMagBtn" onclick="saveMagazine()">💾 ENREGISTRER L'ALBUM</button>
 </div>
 
-<!-- BLOC 3 : FLASH INFO -->
 <div class="card">
 <div class="card-title"><span>3. INFO FLASH HD</span></div>
 <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(13, 17, 23, 0.8); padding: 12px; border-radius: 10px; border: 1px solid var(--border-gold); margin-bottom: 12px;">
@@ -216,14 +208,12 @@ text-align: center;
 <button class="btn btn-gold" id="uploadFlashBtn" onclick="uploadFlashInfo()">📤 PUBLIER L'INFO FLASH</button>
 </div>
 
-<!-- BLOC 4 : TICKETS -->
 <div class="card">
 <div class="card-title"><span>4. TICKET DE SESSION HD</span></div>
 <label class="label">Image 9:16 :</label><input type="file" id="sessionTicketInput" accept="image/*" style="padding: 8px; color: var(--text-muted);">
 <button class="btn btn-gold" id="uploadTicketBtn" onclick="uploadSessionTicket()">💾 PUBLIER LES TICKETS</button>
 </div>
 
-<!-- BLOC 5 : VRP (SÉCURISÉ VIA RENDER) -->
 <div class="card">
 <div class="card-title"><span>5. STATISTIQUES VRP</span></div>
 <button class="btn btn-gold" id="loadVrpBtn" onclick="loadVrpPerformance()">🔄 ACTUALISER LES STATS VRP</button>
@@ -235,318 +225,299 @@ text-align: center;
 <script>
 const SUPABASE_URL = 'https://yntigkzalrqnjfjwxgzd.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_fDvGSVpaOFWV59StpXg-YQ_Vm3Vw1pt';
-const API_BASE = 'https://mike-edge-backend.onrender.com/api/v1';
+const API_BASE = '/api/v1';
 
 const { createClient } = supabase;
 const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 let isFlashActive = true;
 let selectedPages = [];
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 Mo
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
-function showToast(message, type = 'error') {
+function showToast(message, type) {
     const toast = document.getElementById('toast');
     toast.textContent = message;
     toast.className = type === 'success' ? 'toast-success' : 'toast-error';
     toast.style.display = 'block';
-    setTimeout(() => { toast.style.display = 'none'; }, 4000);
+    setTimeout(function() { toast.style.display = 'none'; }, 4000);
 }
 
 function validateImageFile(file) {
     if (!file) return "Aucun fichier sélectionné.";
     if (!file.type.startsWith('image/')) return "Le fichier doit être une image.";
-    if (file.size > MAX_FILE_SIZE) return `Fichier trop lourd (max 10 Mo).`;
+    if (file.size > MAX_FILE_SIZE) return "Fichier trop lourd (max 10 Mo).";
     return null;
 }
 
-// 🟢 TEST DE CONNEXION AVEC TIMEOUT 60s
-window.addEventListener('DOMContentLoaded', async () => {
+window.addEventListener('DOMContentLoaded', async function() {
     const banner = document.getElementById('connectionBanner');
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60000);
     try {
-        const res = await fetch(`${API_BASE}/magazines`, { method: 'GET', signal: controller.signal });
-        clearTimeout(timeoutId);
+        const res = await fetch(API_BASE + '/magazines', { method: 'GET' });
         if (res.ok) {
             banner.className = 'conn-online';
             banner.textContent = '🟢 SERVEUR RENDER & SUPABASE CONNECTÉS ET ACTIFS';
         } else {
-            throw new Error("Erreur HTTP " + res.status);
+            throw new Error("HTTP " + res.status);
         }
     } catch (err) {
-        clearTimeout(timeoutId);
         banner.className = 'conn-offline';
         banner.textContent = '🔴 SERVEUR INJOIGNABLE (Vérifiez Render)';
     }
 });
 
 function setLoading(isLoading, text) {
-    const overlay = document.getElementById('loadingOverlay');
     document.getElementById('loadingText').textContent = text || 'TRAITEMENT EN COURS...';
-    overlay.style.display = isLoading ? 'flex' : 'none';
-    const actionButtons = ['verifySheetBtn','publishSheetBtn','saveMagBtn','toggleFlashBtn','uploadFlashBtn','uploadTicketBtn','loadVrpBtn'];
-    actionButtons.forEach(id => {
-        const btn = document.getElementById(id);
-        if (btn) btn.disabled = isLoading;
+    document.getElementById('loadingOverlay').style.display = isLoading ? 'flex' : 'none';
+    var btns = ['verifySheetBtn','publishSheetBtn','saveMagBtn','toggleFlashBtn','uploadFlashBtn','uploadTicketBtn','loadVrpBtn'];
+    btns.forEach(function(id) {
+        var b = document.getElementById(id);
+        if (b) b.disabled = isLoading;
     });
 }
 
 function getAdminKey() {
-    const key = document.getElementById('adminKeyInput').value.trim();
-    if (!key) throw new Error("⚠️ Veuillez d'abord saisir la Clé Admin Secrète en haut !");
+    var key = document.getElementById('adminKeyInput').value.trim();
+    if (!key) throw new Error("Saisissez la Clé Admin Secrète !");
     return key;
 }
 
 async function testAdminKey() {
-    const status = document.getElementById('authStatus');
+    var status = document.getElementById('authStatus');
     try {
-        const key = getAdminKey();
-        status.textContent = "⏳ Test de la clé en cours...";
+        var key = getAdminKey();
+        status.textContent = "Test en cours...";
         status.style.color = "#FF8C00";
-        const res = await fetch(`${API_BASE}/import`, {
+        var res = await fetch(API_BASE + '/import', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'x-admin-key': key },
             body: JSON.stringify({ raw_text: '' })
         });
         if (res.status === 403 || res.status === 401) {
-            status.textContent = "❌ Clé Admin INCORRECTE";
+            status.textContent = "Clé Admin INCORRECTE";
             status.style.color = "var(--alert-red)";
         } else {
-            status.textContent = "✅ Clé Admin VALIDE !";
+            status.textContent = "Clé Admin VALIDE !";
             status.style.color = "var(--emerald-success)";
         }
     } catch (err) {
-        status.textContent = "❌ Erreur : " + err.message;
+        status.textContent = "Erreur : " + err.message;
         status.style.color = "var(--alert-red)";
     }
 }
 
 function verifySheet() {
-    const text = document.getElementById('rawTextInput').value.trim();
-    const previewBox = document.getElementById('previewBox');
-    const previewDetails = document.getElementById('previewDetails');
-    const publishBtn = document.getElementById('publishSheetBtn');
+    var text = document.getElementById('rawTextInput').value.trim();
+    var previewBox = document.getElementById('previewBox');
+    var previewDetails = document.getElementById('previewDetails');
+    var publishBtn = document.getElementById('publishSheetBtn');
     if (!text) { showToast("Veuillez coller une fiche."); return; }
     previewBox.style.display = 'block';
     previewDetails.innerHTML = '';
-    const hasTeams = /vs|contre|match/i.test(text);
+    var hasTeams = /vs|contre|match/i.test(text);
     if (hasTeams) {
-        const p = document.createElement('p');
-        p.innerHTML = '✅ Structure Match : <span class="status-ok">VALIDE</span>';
+        var p = document.createElement('p');
+        p.innerHTML = 'Structure Match : <span class="status-ok">VALIDE</span>';
         previewDetails.appendChild(p);
         publishBtn.style.display = 'block';
     } else {
-        const p = document.createElement('p');
+        var p = document.createElement('p');
         p.className = 'status-err';
-        p.textContent = '❌ Format non reconnu.';
+        p.textContent = 'Format non reconnu.';
         previewDetails.appendChild(p);
         publishBtn.style.display = 'none';
     }
 }
 
 async function publishSector() {
-    const text = document.getElementById('rawTextInput').value.trim();
-    let adminKey; try { adminKey = getAdminKey(); } catch (err) { showToast(err.message); return; }
-    setLoading(true, 'PUBLICATION SUR LE SERVEUR...');
+    var text = document.getElementById('rawTextInput').value.trim();
+    var adminKey;
+    try { adminKey = getAdminKey(); } catch (err) { showToast(err.message); return; }
+    setLoading(true, 'PUBLICATION...');
     try {
-        const response = await fetch(`${API_BASE}/import`, {
+        var response = await fetch(API_BASE + '/import', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'x-admin-key': adminKey },
             body: JSON.stringify({ raw_text: text, user_id: 1, category_override: document.getElementById('categorySelect').value })
         });
-        const result = await response.json();
+        var result = await response.json();
         if (response.ok && result.success) {
-            showToast("🚀 SUCCÈS : Fiche publiée ! ID: " + result.data.publication_id, 'success');
+            showToast("SUCCÈS : Fiche publiée ! ID: " + result.data.publication_id, 'success');
             document.getElementById('rawTextInput').value = '';
             document.getElementById('previewBox').style.display = 'none';
         } else {
-            showToast("❌ Erreur Serveur : " + (result.message || JSON.stringify(result.errors)));
+            showToast("Erreur Serveur : " + (result.message || JSON.stringify(result.errors)));
         }
     } catch (err) {
-        showToast("❌ Erreur Réseau : " + err.message);
+        showToast("Erreur Réseau : " + err.message);
     } finally { setLoading(false); }
 }
 
 function handlePagesSelect(input) {
-    const files = Array.from(input.files);
+    var files = Array.from(input.files);
     if (files.length === 0) return;
-    for (const file of files) {
-        const err = validateImageFile(file);
+    for (var i = 0; i < files.length; i++) {
+        var err = validateImageFile(files[i]);
         if (err) { showToast(err); input.value = ''; return; }
     }
-    files.forEach(file => selectedPages.push(file));
+    files.forEach(function(file) { selectedPages.push(file); });
     renderPageQueue();
     input.value = '';
 }
 
-let pageObjectUrls = [];
+var pageObjectUrls = [];
 
 function renderPageQueue() {
-    const container = document.getElementById('pageQueueContainer');
-    const grid = document.getElementById('pageQueueGrid');
-    pageObjectUrls.forEach(url => URL.revokeObjectURL(url));
+    var container = document.getElementById('pageQueueContainer');
+    var grid = document.getElementById('pageQueueGrid');
+    pageObjectUrls.forEach(function(url) { URL.revokeObjectURL(url); });
     pageObjectUrls = [];
     if (selectedPages.length === 0) { container.style.display = 'none'; return; }
     container.style.display = 'block';
-    document.getElementById('pageQueueCount').textContent = `${selectedPages.length} page(s)`;
+    document.getElementById('pageQueueCount').textContent = selectedPages.length + ' page(s)';
     grid.innerHTML = '';
-    selectedPages.forEach((file, index) => {
-        const thumb = document.createElement('div');
+    selectedPages.forEach(function(file, index) {
+        var thumb = document.createElement('div');
         thumb.className = 'page-thumb';
-        const img = document.createElement('img');
-        const objUrl = URL.createObjectURL(file);
+        var img = document.createElement('img');
+        var objUrl = URL.createObjectURL(file);
         pageObjectUrls.push(objUrl);
         img.src = objUrl;
-        const badge = document.createElement('div');
+        var badge = document.createElement('div');
         badge.className = 'page-thumb-num';
-        badge.textContent = `P.${index + 1}`;
-        const removeBtn = document.createElement('button');
+        badge.textContent = 'P.' + (index + 1);
+        var removeBtn = document.createElement('button');
         removeBtn.className = 'page-thumb-remove';
         removeBtn.textContent = '✕';
-        removeBtn.onclick = () => { selectedPages.splice(index, 1); renderPageQueue(); };
+        removeBtn.onclick = function() { selectedPages.splice(index, 1); renderPageQueue(); };
         thumb.appendChild(img); thumb.appendChild(badge); thumb.appendChild(removeBtn);
         grid.appendChild(thumb);
     });
 }
 
 async function saveMagazine() {
-    const title = document.getElementById('magTitle').value.trim();
-    const date = document.getElementById('magDate').value;
-    const coverFile = document.getElementById('magCover').files[0];
-    let adminKey; try { adminKey = getAdminKey(); } catch (err) { showToast(err.message); return; }
+    var title = document.getElementById('magTitle').value.trim();
+    var date = document.getElementById('magDate').value;
+    var coverFile = document.getElementById('magCover').files[0];
+    var adminKey;
+    try { adminKey = getAdminKey(); } catch (err) { showToast(err.message); return; }
     if (!title || !date) { showToast("Titre et date requis."); return; }
     if (selectedPages.length === 0) { showToast("Ajoutez des pages."); return; }
     if (coverFile) {
-        const err = validateImageFile(coverFile);
+        var err = validateImageFile(coverFile);
         if (err) { showToast(err); return; }
     }
-    setLoading(true, `UPLOAD DE L'ALBUM...`);
+    setLoading(true, 'UPLOAD ALBUM...');
     try {
-        let coverUrl = '';
+        var coverUrl = '';
         if (coverFile) {
-            const fileName = `covers/${Date.now()}_${coverFile.name}`;
+            var fileName = 'covers/' + Date.now() + '_' + coverFile.name;
             await supabaseClient.storage.from('magazines').upload(fileName, coverFile);
-            const { data } = supabaseClient.storage.from('magazines').getPublicUrl(fileName);
-            coverUrl = data.publicUrl;
+            var d = supabaseClient.storage.from('magazines').getPublicUrl(fileName);
+            coverUrl = d.data.publicUrl;
         }
-        const { data: mag, error: magError } = await supabaseClient.from('magazines').insert([{ title, edition_date: date, cover_url: coverUrl, is_active: true }]).select('id').single();
-        if (magError || !mag) throw new Error(magError?.message || "Échec création magazine");
-        for (let i = 0; i < selectedPages.length; i++) {
-            const file = selectedPages[i];
-            const pName = `pages/${mag.id}/${Date.now()}_p${i+1}_${file.name}`;
+        var mag = await supabaseClient.from('magazines').insert([{ title: title, edition_date: date, cover_url: coverUrl, is_active: true }]).select('id').single();
+        if (mag.error || !mag.data) throw new Error(mag.error?.message || "Échec création magazine");
+        for (var i = 0; i < selectedPages.length; i++) {
+            var file = selectedPages[i];
+            var pName = 'pages/' + mag.data.id + '/' + Date.now() + '_p' + (i+1) + '_' + file.name;
             await supabaseClient.storage.from('magazines').upload(pName, file);
-            const { data: pData } = supabaseClient.storage.from('magazines').getPublicUrl(pName);
-            await supabaseClient.from('magazine_pages').insert([{ magazine_id: mag.id, page_number: i + 1, image_url: pData.publicUrl }]);
+            var pData = supabaseClient.storage.from('magazines').getPublicUrl(pName);
+            await supabaseClient.from('magazine_pages').insert([{ magazine_id: mag.data.id, page_number: i + 1, image_url: pData.data.publicUrl }]);
         }
-        showToast("💾 Album enregistré !", 'success');
+        showToast("Album enregistré !", 'success');
         selectedPages = []; renderPageQueue();
         document.getElementById('magTitle').value = '';
         document.getElementById('magDate').value = '';
         document.getElementById('magCover').value = '';
-    } catch (err) { showToast("❌ Erreur : " + err.message); } finally { setLoading(false); }
+    } catch (err) { showToast("Erreur : " + err.message); } finally { setLoading(false); }
 }
 
 async function toggleFlashStatus() {
-    let adminKey; try { adminKey = getAdminKey(); } catch (err) { showToast(err.message); return; }
-    const toggleBtn = document.getElementById('toggleFlashBtn');
-    const statusText = document.getElementById('flashStatusText');
-    
+    var adminKey;
+    try { adminKey = getAdminKey(); } catch (err) { showToast(err.message); return; }
     setLoading(true, 'MISE À JOUR STATUT FLASH...');
     try {
-        const { data: latestFlash, error: fetchErr } = await supabaseClient
-            .from('flash_infos')
-            .select('id, is_active')
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .single();
-            
-        if (fetchErr || !latestFlash) {
-            showToast("Aucun flash trouvé en base.");
-            setLoading(false);
-            return;
-        }
-        
-        const newStatus = !latestFlash.is_active;
-        await supabaseClient.from('flash_infos').update({ is_active: newStatus }).eq('id', latestFlash.id);
+        var latest = await supabaseClient.from('flash_infos').select('id, is_active').order('created_at', { ascending: false }).limit(1).single();
+        if (latest.error || !latest.data) { showToast("Aucun flash trouvé."); setLoading(false); return; }
+        var newStatus = !latest.data.is_active;
+        await supabaseClient.from('flash_infos').update({ is_active: newStatus }).eq('id', latest.data.id);
         isFlashActive = newStatus;
-        
+        var statusText = document.getElementById('flashStatusText');
+        var toggleBtn = document.getElementById('toggleFlashBtn');
         if (isFlashActive) { 
             statusText.textContent = "🟢 ACTIVÉ"; statusText.style.color = "var(--emerald-success)"; toggleBtn.textContent = "DÉSACTIVER"; 
         } else { 
             statusText.textContent = "⚪ DÉSACTIVÉ"; statusText.style.color = "var(--text-muted)"; toggleBtn.textContent = "ACTIVER"; 
         }
-    } catch (err) { showToast("❌ Erreur : " + err.message); } finally { setLoading(false); }
+    } catch (err) { showToast("Erreur : " + err.message); } finally { setLoading(false); }
 }
 
 async function uploadFlashInfo() {
-    const file = document.getElementById('flashImageInput').files[0];
-    let adminKey; try { adminKey = getAdminKey(); } catch (err) { showToast(err.message); return; }
-    const err = validateImageFile(file);
+    var file = document.getElementById('flashImageInput').files[0];
+    var adminKey;
+    try { adminKey = getAdminKey(); } catch (err) { showToast(err.message); return; }
+    var err = validateImageFile(file);
     if (err) { showToast(err); return; }
     setLoading(true, 'PUBLICATION FLASH...');
     try {
         await supabaseClient.from('flash_infos').update({ is_active: false }).eq('is_active', true);
-        const fileName = `flash/${Date.now()}_${file.name}`;
+        var fileName = 'flash/' + Date.now() + '_' + file.name;
         await supabaseClient.storage.from('magazines').upload(fileName, file);
-        const { data } = supabaseClient.storage.from('magazines').getPublicUrl(fileName);
-        await supabaseClient.from('flash_infos').insert([{ title: "Info Flash", message: "Flash direct", image_url: data.publicUrl, is_active: true }]);
-        showToast("⚡ Info Flash publiée et anciens flashs désactivés !", 'success');
+        var d = supabaseClient.storage.from('magazines').getPublicUrl(fileName);
+        await supabaseClient.from('flash_infos').insert([{ title: "Info Flash", message: "Flash direct", image_url: d.data.publicUrl, is_active: true }]);
+        showToast("Info Flash publiée !", 'success');
         document.getElementById('flashImageInput').value = '';
-    } catch (err) { showToast("❌ Erreur : " + err.message); } finally { setLoading(false); }
+    } catch (err) { showToast("Erreur : " + err.message); } finally { setLoading(false); }
 }
 
 async function uploadSessionTicket() {
-    const file = document.getElementById('sessionTicketInput').files[0];
-    let adminKey; try { adminKey = getAdminKey(); } catch (err) { showToast(err.message); return; }
-    const err = validateImageFile(file);
+    var file = document.getElementById('sessionTicketInput').files[0];
+    var adminKey;
+    try { adminKey = getAdminKey(); } catch (err) { showToast(err.message); return; }
+    var err = validateImageFile(file);
     if (err) { showToast(err); return; }
     setLoading(true, "TÉLÉVERSEMENT...");
     try {
-        const fileName = `session_tickets/${Date.now()}_${file.name}`;
+        var fileName = 'session_tickets/' + Date.now() + '_' + file.name;
         await supabaseClient.storage.from('tickets').upload(fileName, file);
-        const { data } = await supabaseClient.storage.from('tickets').getPublicUrl(fileName);
-        await supabaseClient.from('system_configs').upsert([{ key: 'session_ticket_url', value: data.publicUrl }], { onConflict: 'key' });
-        showToast("🎉 Ticket publié !", 'success');
+        var d = await supabaseClient.storage.from('tickets').getPublicUrl(fileName);
+        await supabaseClient.from('system_configs').upsert([{ key: 'session_ticket_url', value: d.data.publicUrl }], { onConflict: 'key' });
+        showToast("Ticket publié !", 'success');
         document.getElementById('sessionTicketInput').value = '';
-    } catch (err) { showToast("❌ Erreur : " + err.message); } finally { setLoading(false); }
+    } catch (err) { showToast("Erreur : " + err.message); } finally { setLoading(false); }
 }
 
-// 🟢 CORRECTION VRP VIA RENDER (OPTION A DE KIMI)
 async function loadVrpPerformance() {
-    let adminKey; try { adminKey = getAdminKey(); } catch (err) { showToast(err.message); return; }
+    var adminKey;
+    try { adminKey = getAdminKey(); } catch (err) { showToast(err.message); return; }
     setLoading(true, 'STATS VRP...');
     try {
-        const response = await fetch(`${API_BASE}/vrp/stats`, {
-            method: 'GET',
-            headers: { 'x-admin-key': adminKey }
-        });
-        const result = await response.json();
+        var response = await fetch(API_BASE + '/vrp/stats', { method: 'GET', headers: { 'x-admin-key': adminKey } });
+        var result = await response.json();
         if (!response.ok || !result.success) throw new Error(result.message || "Échec stats VRP");
-
-        const tableBody = document.getElementById('vrpTableBody');
+        var tableBody = document.getElementById('vrpTableBody');
         tableBody.innerHTML = '';
-        const profiles = result.data;
-
+        var profiles = result.data;
         if (!profiles || profiles.length === 0) {
-            const row = document.createElement('tr');
-            const td = document.createElement('td');
+            var row = document.createElement('tr');
+            var td = document.createElement('td');
             td.colSpan = 4; td.style.textAlign = 'center';
             td.textContent = 'Aucun agent VRP enregistré.';
             row.appendChild(td); tableBody.appendChild(row);
         } else {
-            profiles.forEach(vrp => {
-                const row = document.createElement('tr');
-                const tdCode = document.createElement('td'); tdCode.style.color = 'var(--gold-bright)'; tdCode.textContent = vrp.vrp_code;
-                const tdZone = document.createElement('td'); tdZone.textContent = vrp.zone;
-                const tdSubs = document.createElement('td'); tdSubs.textContent = vrp.active_subscribers;
-                const tdTime = document.createElement('td'); tdTime.textContent = `+${vrp.earned_days} jours`;
+            profiles.forEach(function(vrp) {
+                var row = document.createElement('tr');
+                var tdCode = document.createElement('td'); tdCode.style.color = 'var(--gold-bright)'; tdCode.textContent = vrp.vrp_code;
+                var tdZone = document.createElement('td'); tdZone.textContent = vrp.zone;
+                var tdSubs = document.createElement('td'); tdSubs.textContent = vrp.active_subscribers;
+                var tdTime = document.createElement('td'); tdTime.textContent = '+' + vrp.earned_days + ' jours';
                 row.appendChild(tdCode); row.appendChild(tdZone); row.appendChild(tdSubs); row.appendChild(tdTime);
                 tableBody.appendChild(row);
             });
         }
         document.getElementById('vrpTableContainer').style.display = 'block';
-        showToast("✅ Stats VRP actualisées", "success");
-    } catch (err) { showToast("❌ Erreur : " + err.message); } finally { setLoading(false); }
+        showToast("Stats VRP actualisées", "success");
+    } catch (err) { showToast("Erreur : " + err.message); } finally { setLoading(false); }
 }
 </script>
 </body>
-    </html>
+</html>
