@@ -7,6 +7,8 @@
  * 3. Rate limiters séparés : strict pour les POST, permissif pour les GET
  * 4. Route /vrp/stats sécurisée via Render (pas de fuite Supabase directe)
  * -------------------------------------------------------------------
+ * 🔧 FIX V11.16 : Ajout endpoints /health et /health/db + logs erreurs SQL dans /magazines
+ * -------------------------------------------------------------------
  */
 
 require('dotenv').config();
@@ -263,6 +265,45 @@ app.post('/api/v1/import', mutationLimiter, verifyAdminKey, async (req, res) => 
 });
 
 // ==========================================
+// 🔬 ENDPOINTS DE SANTÉ (V11.16 FIX — AJOUTÉS)
+// ==========================================
+
+// 1. Santé serveur — aucune dépendance DB
+app.get('/health', (req, res) => {
+    res.status(200).json({
+        success: true,
+        status: 'UP',
+        service: 'mike-edge-backend',
+        version: '11.16-S',
+        timestamp: new Date().toISOString(),
+        environment: process.env.NODE_ENV || 'development'
+    });
+});
+
+// 2. Santé base de données
+app.get('/health/db', async (req, res) => {
+    try {
+        const start = Date.now();
+        await pool.query('SELECT 1');
+        const latency = Date.now() - start;
+        res.status(200).json({
+            success: true,
+            status: 'UP',
+            database: 'connected',
+            latency_ms: latency
+        });
+    } catch (err) {
+        console.error('[HEALTH/DB] 🔴 Échec connexion PostgreSQL :', err.message);
+        res.status(503).json({
+            success: false,
+            status: 'DOWN',
+            error_code: 'DB_CONNECTION_FAILED',
+            detail: err.message
+        });
+    }
+});
+
+// ==========================================
 // 3. ROUTES DE CONTENU & STATS VRP
 // ==========================================
 
@@ -362,6 +403,9 @@ app.get('/api/v1/magazines', async (req, res) => {
         const result = await pool.query('SELECT * FROM magazines WHERE is_active = true ORDER BY edition_date DESC LIMIT 20');
         res.json({ success: true, data: result.rows });
     } catch (err) {
+        // 🔴 V11.16 FIX : Log de l'erreur SQL exacte (était muet avant)
+        console.error('❌ Erreur Fetch Magazines:', err.message);
+        console.error('❌ Code SQL:', err.code, '| Detail:', err.detail);
         res.status(500).json({ success: false, code: 'ERR_FETCH_MAGAZINES' });
     }
 });
