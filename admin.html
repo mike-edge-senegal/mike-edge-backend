@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline' https://cdn.tailwindcss.com https://unpkg.com; style-src 'unsafe-inline' https://cdn.tailwindcss.com; connect-src https://yntigkzalrqnjfjwxgzd.supabase.co https://mike-edge-backend.onrender.com; img-src 'self' blob: https://*.supabase.co https://*.supabase.in;">
-<title>🎛️ COCKPIT ADMIN — MIKE EDGE V4.1</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline' https://cdn.tailwindcss.com https://unpkg.com; style-src 'unsafe-inline' https://cdn.tailwindcss.com; connect-src 'self' https://yntigkzalrqnjfjwxgzd.supabase.co; img-src 'self' blob: https://*.supabase.co https://*.supabase.in;">
+<title>🎛️ COCKPIT ADMIN — MIKE EDGE V4.2</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <style>
@@ -148,7 +148,7 @@ text-align: center;
 
 <div style="text-align: center; margin-bottom: 16px; padding-top: 10px;">
 <h1 style="font-size: 20px; color: var(--gold); letter-spacing: 1px;">🎛️ COCKPIT ADMIN MIKE EDGE</h1>
-<p style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">V4.1 DÉFINITIVE & SCELLÉE</p>
+<p style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">V4.2 CORRIGÉE</p>
 </div>
 
 <div id="connectionBanner" class="conn-checking">
@@ -254,39 +254,39 @@ window.addEventListener('DOMContentLoaded', async function() {
         const res = await fetch(API_BASE + '/magazines', { method: 'GET' });
         if (res.ok) {
             banner.className = 'conn-online';
-            banner.textContent = '🟢 SERVEUR RENDER & SUPABASE CONNECTÉS ET ACTIFS';
+            banner.textContent = '🟢 SERVEUR CONNECTÉ';
         } else {
             throw new Error("HTTP " + res.status);
         }
     } catch (err) {
         banner.className = 'conn-offline';
-        banner.textContent = '🔴 SERVEUR INJOIGNABLE (Vérifiez Render)';
+        banner.textContent = '🔴 SERVEUR INJOIGNABLE';
     }
 });
 
 function setLoading(isLoading, text) {
     document.getElementById('loadingText').textContent = text || 'TRAITEMENT EN COURS...';
     document.getElementById('loadingOverlay').style.display = isLoading ? 'flex' : 'none';
-    var btns = ['verifySheetBtn','publishSheetBtn','saveMagBtn','toggleFlashBtn','uploadFlashBtn','uploadTicketBtn','loadVrpBtn'];
+    const btns = ['verifySheetBtn','publishSheetBtn','saveMagBtn','toggleFlashBtn','uploadFlashBtn','uploadTicketBtn','loadVrpBtn'];
     btns.forEach(function(id) {
-        var b = document.getElementById(id);
+        const b = document.getElementById(id);
         if (b) b.disabled = isLoading;
     });
 }
 
 function getAdminKey() {
-    var key = document.getElementById('adminKeyInput').value.trim();
+    const key = document.getElementById('adminKeyInput').value.trim();
     if (!key) throw new Error("Saisissez la Clé Admin Secrète !");
     return key;
 }
 
 async function testAdminKey() {
-    var status = document.getElementById('authStatus');
+    const status = document.getElementById('authStatus');
     try {
-        var key = getAdminKey();
+        const key = getAdminKey();
         status.textContent = "Test en cours...";
         status.style.color = "#FF8C00";
-        var res = await fetch(API_BASE + '/import', {
+        const res = await fetch(API_BASE + '/import', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'x-admin-key': key },
             body: JSON.stringify({ raw_text: '' })
@@ -305,21 +305,21 @@ async function testAdminKey() {
 }
 
 function verifySheet() {
-    var text = document.getElementById('rawTextInput').value.trim();
-    var previewBox = document.getElementById('previewBox');
-    var previewDetails = document.getElementById('previewDetails');
-    var publishBtn = document.getElementById('publishSheetBtn');
+    const text = document.getElementById('rawTextInput').value.trim();
+    const previewBox = document.getElementById('previewBox');
+    const previewDetails = document.getElementById('previewDetails');
+    const publishBtn = document.getElementById('publishSheetBtn');
     if (!text) { showToast("Veuillez coller une fiche."); return; }
     previewBox.style.display = 'block';
     previewDetails.innerHTML = '';
-    var hasTeams = /vs|contre|match/i.test(text);
+    const hasTeams = /vs|contre|match/i.test(text);
     if (hasTeams) {
-        var p = document.createElement('p');
+        const p = document.createElement('p');
         p.innerHTML = 'Structure Match : <span class="status-ok">VALIDE</span>';
         previewDetails.appendChild(p);
         publishBtn.style.display = 'block';
     } else {
-        var p = document.createElement('p');
+        const p = document.createElement('p');
         p.className = 'status-err';
         p.textContent = 'Format non reconnu.';
         previewDetails.appendChild(p);
@@ -328,17 +328,17 @@ function verifySheet() {
 }
 
 async function publishSector() {
-    var text = document.getElementById('rawTextInput').value.trim();
-    var adminKey;
+    const text = document.getElementById('rawTextInput').value.trim();
+    let adminKey;
     try { adminKey = getAdminKey(); } catch (err) { showToast(err.message); return; }
     setLoading(true, 'PUBLICATION...');
     try {
-        var response = await fetch(API_BASE + '/import', {
+        const response = await fetch(API_BASE + '/import', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'x-admin-key': adminKey },
             body: JSON.stringify({ raw_text: text, user_id: 1, category_override: document.getElementById('categorySelect').value })
         });
-        var result = await response.json();
+        const result = await response.json();
         if (response.ok && result.success) {
             showToast("SUCCÈS : Fiche publiée ! ID: " + result.data.publication_id, 'success');
             document.getElementById('rawTextInput').value = '';
@@ -352,10 +352,10 @@ async function publishSector() {
 }
 
 function handlePagesSelect(input) {
-    var files = Array.from(input.files);
+    const files = Array.from(input.files);
     if (files.length === 0) return;
-    for (var i = 0; i < files.length; i++) {
-        var err = validateImageFile(files[i]);
+    for (let i = 0; i < files.length; i++) {
+        const err = validateImageFile(files[i]);
         if (err) { showToast(err); input.value = ''; return; }
     }
     files.forEach(function(file) { selectedPages.push(file); });
@@ -363,11 +363,11 @@ function handlePagesSelect(input) {
     input.value = '';
 }
 
-var pageObjectUrls = [];
+let pageObjectUrls = [];
 
 function renderPageQueue() {
-    var container = document.getElementById('pageQueueContainer');
-    var grid = document.getElementById('pageQueueGrid');
+    const container = document.getElementById('pageQueueContainer');
+    const grid = document.getElementById('pageQueueGrid');
     pageObjectUrls.forEach(function(url) { URL.revokeObjectURL(url); });
     pageObjectUrls = [];
     if (selectedPages.length === 0) { container.style.display = 'none'; return; }
@@ -375,16 +375,16 @@ function renderPageQueue() {
     document.getElementById('pageQueueCount').textContent = selectedPages.length + ' page(s)';
     grid.innerHTML = '';
     selectedPages.forEach(function(file, index) {
-        var thumb = document.createElement('div');
+        const thumb = document.createElement('div');
         thumb.className = 'page-thumb';
-        var img = document.createElement('img');
-        var objUrl = URL.createObjectURL(file);
+        const img = document.createElement('img');
+        const objUrl = URL.createObjectURL(file);
         pageObjectUrls.push(objUrl);
         img.src = objUrl;
-        var badge = document.createElement('div');
+        const badge = document.createElement('div');
         badge.className = 'page-thumb-num';
         badge.textContent = 'P.' + (index + 1);
-        var removeBtn = document.createElement('button');
+        const removeBtn = document.createElement('button');
         removeBtn.className = 'page-thumb-remove';
         removeBtn.textContent = '✕';
         removeBtn.onclick = function() { selectedPages.splice(index, 1); renderPageQueue(); };
@@ -394,33 +394,33 @@ function renderPageQueue() {
 }
 
 async function saveMagazine() {
-    var title = document.getElementById('magTitle').value.trim();
-    var date = document.getElementById('magDate').value;
-    var coverFile = document.getElementById('magCover').files[0];
-    var adminKey;
+    const title = document.getElementById('magTitle').value.trim();
+    const date = document.getElementById('magDate').value;
+    const coverFile = document.getElementById('magCover').files[0];
+    let adminKey;
     try { adminKey = getAdminKey(); } catch (err) { showToast(err.message); return; }
     if (!title || !date) { showToast("Titre et date requis."); return; }
     if (selectedPages.length === 0) { showToast("Ajoutez des pages."); return; }
     if (coverFile) {
-        var err = validateImageFile(coverFile);
+        const err = validateImageFile(coverFile);
         if (err) { showToast(err); return; }
     }
     setLoading(true, 'UPLOAD ALBUM...');
     try {
-        var coverUrl = '';
+        let coverUrl = '';
         if (coverFile) {
-            var fileName = 'covers/' + Date.now() + '_' + coverFile.name;
+            const fileName = 'covers/' + Date.now() + '_' + coverFile.name;
             await supabaseClient.storage.from('magazines').upload(fileName, coverFile);
-            var d = supabaseClient.storage.from('magazines').getPublicUrl(fileName);
+            const d = supabaseClient.storage.from('magazines').getPublicUrl(fileName);
             coverUrl = d.data.publicUrl;
         }
-        var mag = await supabaseClient.from('magazines').insert([{ title: title, edition_date: date, cover_url: coverUrl, is_active: true }]).select('id').single();
+        const mag = await supabaseClient.from('magazines').insert([{ title: title, edition_date: date, cover_url: coverUrl, is_active: true }]).select('id').single();
         if (mag.error || !mag.data) throw new Error(mag.error?.message || "Échec création magazine");
-        for (var i = 0; i < selectedPages.length; i++) {
-            var file = selectedPages[i];
-            var pName = 'pages/' + mag.data.id + '/' + Date.now() + '_p' + (i+1) + '_' + file.name;
+        for (let i = 0; i < selectedPages.length; i++) {
+            const file = selectedPages[i];
+            const pName = 'pages/' + mag.data.id + '/' + Date.now() + '_p' + (i+1) + '_' + file.name;
             await supabaseClient.storage.from('magazines').upload(pName, file);
-            var pData = supabaseClient.storage.from('magazines').getPublicUrl(pName);
+            const pData = supabaseClient.storage.from('magazines').getPublicUrl(pName);
             await supabaseClient.from('magazine_pages').insert([{ magazine_id: mag.data.id, page_number: i + 1, image_url: pData.data.publicUrl }]);
         }
         showToast("Album enregistré !", 'success');
@@ -432,17 +432,17 @@ async function saveMagazine() {
 }
 
 async function toggleFlashStatus() {
-    var adminKey;
+    let adminKey;
     try { adminKey = getAdminKey(); } catch (err) { showToast(err.message); return; }
     setLoading(true, 'MISE À JOUR STATUT FLASH...');
     try {
-        var latest = await supabaseClient.from('flash_infos').select('id, is_active').order('created_at', { ascending: false }).limit(1).single();
+        const latest = await supabaseClient.from('flash_infos').select('id, is_active').order('created_at', { ascending: false }).limit(1).single();
         if (latest.error || !latest.data) { showToast("Aucun flash trouvé."); setLoading(false); return; }
-        var newStatus = !latest.data.is_active;
+        const newStatus = !latest.data.is_active;
         await supabaseClient.from('flash_infos').update({ is_active: newStatus }).eq('id', latest.data.id);
         isFlashActive = newStatus;
-        var statusText = document.getElementById('flashStatusText');
-        var toggleBtn = document.getElementById('toggleFlashBtn');
+        const statusText = document.getElementById('flashStatusText');
+        const toggleBtn = document.getElementById('toggleFlashBtn');
         if (isFlashActive) { 
             statusText.textContent = "🟢 ACTIVÉ"; statusText.style.color = "var(--emerald-success)"; toggleBtn.textContent = "DÉSACTIVER"; 
         } else { 
@@ -452,17 +452,17 @@ async function toggleFlashStatus() {
 }
 
 async function uploadFlashInfo() {
-    var file = document.getElementById('flashImageInput').files[0];
-    var adminKey;
+    const file = document.getElementById('flashImageInput').files[0];
+    let adminKey;
     try { adminKey = getAdminKey(); } catch (err) { showToast(err.message); return; }
-    var err = validateImageFile(file);
+    const err = validateImageFile(file);
     if (err) { showToast(err); return; }
     setLoading(true, 'PUBLICATION FLASH...');
     try {
         await supabaseClient.from('flash_infos').update({ is_active: false }).eq('is_active', true);
-        var fileName = 'flash/' + Date.now() + '_' + file.name;
+        const fileName = 'flash/' + Date.now() + '_' + file.name;
         await supabaseClient.storage.from('magazines').upload(fileName, file);
-        var d = supabaseClient.storage.from('magazines').getPublicUrl(fileName);
+        const d = supabaseClient.storage.from('magazines').getPublicUrl(fileName);
         await supabaseClient.from('flash_infos').insert([{ title: "Info Flash", message: "Flash direct", image_url: d.data.publicUrl, is_active: true }]);
         showToast("Info Flash publiée !", 'success');
         document.getElementById('flashImageInput').value = '';
@@ -470,16 +470,16 @@ async function uploadFlashInfo() {
 }
 
 async function uploadSessionTicket() {
-    var file = document.getElementById('sessionTicketInput').files[0];
-    var adminKey;
+    const file = document.getElementById('sessionTicketInput').files[0];
+    let adminKey;
     try { adminKey = getAdminKey(); } catch (err) { showToast(err.message); return; }
-    var err = validateImageFile(file);
+    const err = validateImageFile(file);
     if (err) { showToast(err); return; }
     setLoading(true, "TÉLÉVERSEMENT...");
     try {
-        var fileName = 'session_tickets/' + Date.now() + '_' + file.name;
+        const fileName = 'session_tickets/' + Date.now() + '_' + file.name;
         await supabaseClient.storage.from('tickets').upload(fileName, file);
-        var d = await supabaseClient.storage.from('tickets').getPublicUrl(fileName);
+        const d = await supabaseClient.storage.from('tickets').getPublicUrl(fileName);
         await supabaseClient.from('system_configs').upsert([{ key: 'session_ticket_url', value: d.data.publicUrl }], { onConflict: 'key' });
         showToast("Ticket publié !", 'success');
         document.getElementById('sessionTicketInput').value = '';
@@ -487,29 +487,29 @@ async function uploadSessionTicket() {
 }
 
 async function loadVrpPerformance() {
-    var adminKey;
+    let adminKey;
     try { adminKey = getAdminKey(); } catch (err) { showToast(err.message); return; }
     setLoading(true, 'STATS VRP...');
     try {
-        var response = await fetch(API_BASE + '/vrp/stats', { method: 'GET', headers: { 'x-admin-key': adminKey } });
-        var result = await response.json();
+        const response = await fetch(API_BASE + '/vrp/stats', { method: 'GET', headers: { 'x-admin-key': adminKey } });
+        const result = await response.json();
         if (!response.ok || !result.success) throw new Error(result.message || "Échec stats VRP");
-        var tableBody = document.getElementById('vrpTableBody');
+        const tableBody = document.getElementById('vrpTableBody');
         tableBody.innerHTML = '';
-        var profiles = result.data;
+        const profiles = result.data;
         if (!profiles || profiles.length === 0) {
-            var row = document.createElement('tr');
-            var td = document.createElement('td');
+            const row = document.createElement('tr');
+            const td = document.createElement('td');
             td.colSpan = 4; td.style.textAlign = 'center';
             td.textContent = 'Aucun agent VRP enregistré.';
             row.appendChild(td); tableBody.appendChild(row);
         } else {
             profiles.forEach(function(vrp) {
-                var row = document.createElement('tr');
-                var tdCode = document.createElement('td'); tdCode.style.color = 'var(--gold-bright)'; tdCode.textContent = vrp.vrp_code;
-                var tdZone = document.createElement('td'); tdZone.textContent = vrp.zone;
-                var tdSubs = document.createElement('td'); tdSubs.textContent = vrp.active_subscribers;
-                var tdTime = document.createElement('td'); tdTime.textContent = '+' + vrp.earned_days + ' jours';
+                const row = document.createElement('tr');
+                const tdCode = document.createElement('td'); tdCode.style.color = 'var(--gold-bright)'; tdCode.textContent = vrp.vrp_code;
+                const tdZone = document.createElement('td'); tdZone.textContent = vrp.zone;
+                const tdSubs = document.createElement('td'); tdSubs.textContent = vrp.active_subscribers;
+                const tdTime = document.createElement('td'); tdTime.textContent = '+' + vrp.earned_days + ' jours';
                 row.appendChild(tdCode); row.appendChild(tdZone); row.appendChild(tdSubs); row.appendChild(tdTime);
                 tableBody.appendChild(row);
             });
