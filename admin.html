@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>🎛️ COCKPIT ADMIN — MIKE EDGE V4.3 DIAGNOSTIC</title>
+<title>🎛️ COCKPIT ADMIN — MIKE EDGE V11.16</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <style>
@@ -48,11 +48,11 @@ th{background-color:rgba(212,175,55,0.1);color:var(--gold)}
 
 <div style="text-align:center;margin-bottom:16px;padding-top:10px;">
 <h1 style="font-size:20px;color:var(--gold);letter-spacing:1px;">🎛️ COCKPIT ADMIN MIKE EDGE</h1>
-<p style="font-size:11px;color:var(--text-muted);margin-top:2px;">V4.3 DIAGNOSTIC — CSP SUPPRIMÉ</p>
+<p style="font-size:11px;color:var(--text-muted);margin-top:2px;">V11.16 DIAGNOSTIC — 3 ÉTAPES</p>
 <p id="apiUrlDisplay" style="font-size:10px;color:#666;margin-top:4px;"></p>
 </div>
 
-<div id="connectionBanner" class="conn-checking">⏳ TEST CONNEXION...</div>
+<div id="connectionBanner" class="conn-checking">⏳ DIAGNOSTIC EN COURS...</div>
 
 <div class="card" style="background:rgba(212,175,55,0.05);">
 <label class="label">🔐 Clé Admin Secrète :</label>
@@ -137,22 +137,48 @@ var MAX_FILE_SIZE = 10 * 1024 * 1024;
 function showToast(msg, type){var t=document.getElementById('toast');t.textContent=msg;t.className=type==='success'?'toast-success':'toast-error';t.style.display='block';setTimeout(function(){t.style.display='none'},4000)}
 function validateImageFile(f){if(!f)return"Aucun fichier.";if(!f.type.startsWith('image/'))return"Ce n'est pas une image.";if(f.size>MAX_FILE_SIZE)return"Fichier trop lourd (max 10Mo).";return null}
 
-// TEST CONNEXION AVEC ERREUR EXACTE AFFICHÉE
-window.addEventListener('DOMContentLoaded',async function(){
-    var banner=document.getElementById('connectionBanner');
-    try{
-        var res=await fetch(API_BASE+'/magazines',{method:'GET'});
-        if(res.ok){
-            banner.className='conn-online';
-            banner.textContent='🟢 CONNECTÉ';
-        }else{
-            banner.className='conn-offline';
-            banner.textContent='🔴 ERREUR HTTP '+res.status;
-        }
-    }catch(err){
-        banner.className='conn-offline';
-        // AFFICHE LE VRAI MESSAGE D'ERREUR
-        banner.textContent='🔴 '+err.name+': '+err.message;
+// ============================================
+// 🔬 DIAGNOSTIC 3 ÉTAPES (V11.16)
+// ============================================
+window.addEventListener('DOMContentLoaded', async function(){
+    var banner = document.getElementById('connectionBanner');
+    banner.className = 'conn-checking';
+    banner.textContent = '⏳ ÉTAPE 1/3 : Serveur Render...';
+
+    // ÉTAPE 1 : /health (serveur uniquement)
+    try {
+        var res = await fetch(window.location.origin + '/health');
+        var data = await res.json();
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        banner.textContent = '⏳ ÉTAPE 2/3 : Base Supabase...';
+    } catch (err) {
+        banner.className = 'conn-offline';
+        banner.textContent = '🔴 SERVEUR RENDER INJOIGNABLE — ' + err.message;
+        return;
+    }
+
+    // ÉTAPE 2 : /health/db (PostgreSQL)
+    try {
+        var res2 = await fetch(window.location.origin + '/health/db');
+        var data2 = await res2.json();
+        if (!res2.ok) throw new Error(data2.error_code || 'HTTP ' + res2.status);
+        banner.textContent = '⏳ ÉTAPE 3/3 : API Magazines...';
+    } catch (err) {
+        banner.className = 'conn-offline';
+        banner.textContent = '🔴 SUPABASE INACCESSIBLE — ' + err.message;
+        return;
+    }
+
+    // ÉTAPE 3 : /api/v1/magazines
+    try {
+        var res3 = await fetch(API_BASE + '/magazines');
+        var data3 = await res3.json();
+        if (!res3.ok) throw new Error((data3.code || 'HTTP ' + res3.status) + ' | ' + (data3.message || ''));
+        banner.className = 'conn-online';
+        banner.textContent = '🟢 CONNECTÉ — ' + (data3.count || 0) + ' magazines actifs';
+    } catch (err) {
+        banner.className = 'conn-offline';
+        banner.textContent = '🔴 API MAGAZINES EN ERREUR — ' + err.message;
     }
 });
 
