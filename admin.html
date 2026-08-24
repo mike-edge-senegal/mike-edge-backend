@@ -124,7 +124,7 @@ th{background-color:rgba(212,175,55,0.1);color:var(--gold)}
 
 <div style="text-align:center;margin-bottom:16px;padding-top:10px;">
 <h1 style="font-size:20px;color:var(--gold);letter-spacing:1px;">🎛️ COCKPIT ADMIN MIKE EDGE</h1>
-<p style="font-size:11px;color:var(--text-muted);margin-top:2px;">V11.17 FIX AUTH</p>
+<p style="font-size:11px;color:var(--text-muted);margin-top:2px;">V11.17 DEBUG ALERT</p>
 <p id="apiUrlDisplay" style="font-size:10px;color:#666;margin-top:4px;"></p>
 </div>
 
@@ -133,7 +133,7 @@ th{background-color:rgba(212,175,55,0.1);color:var(--gold)}
 <div class="card" style="background:rgba(212,175,55,0.05);">
 <label class="label">🔐 Clé Admin Secrète :</label>
 <input type="password" id="adminKeyInput" placeholder="Saisir la clé secrète..." autocomplete="off">
-<button class="btn btn-blue" style="padding:10px;font-size:12px;margin-top:6px;" id="testKeyBtn" onclick="testAdminKey()">🧪 TESTER LE MOT DE PASSE</button>
+<button class="btn btn-blue" style="padding:10px;font-size:12px;margin-top:6px;" onclick="alert('CLICK DETECTE');testAdminKey();">🧪 TESTER LE MOT DE PASSE</button>
 <div id="authStatus" style="font-size:11px;margin-top:8px;font-weight:bold;text-align:center;"></div>
 </div>
 
@@ -318,19 +318,17 @@ function setLoading(on,text){
 
 function getAdminKey(){return document.getElementById('adminKeyInput').value.trim()}
 
-async function testAdminKey(){
-    var s=document.getElementById('authStatus');
-    var btn=document.getElementById('testKeyBtn');
-    if(!s){alert('ERREUR: authStatus introuvable');return;}
+function testAdminKey(){
     var k=document.getElementById('adminKeyInput').value.trim();
-    if(!k){s.textContent='❌ Saisissez la clé admin !';s.style.color='#E0115F';if(btn)btn.style.background='#E0115F';return;}
-    s.textContent='⏳ Vérification...';s.style.color='#FF8C00';if(btn)btn.style.background='#FF8C00';
-    try{
-        var r=await fetch(API_BASE+'/vrp/stats',{method:'GET',headers:{'x-admin-key':k}});
-        if(r.status===401||r.status===403){s.textContent='❌ Clé incorrecte';s.style.color='#E0115F';if(btn)btn.style.background='#E0115F';}
-        else if(r.ok){s.textContent='✅ Clé valide';s.style.color='#50C878';if(btn)btn.style.background='#50C878';}
-        else{s.textContent='⚠️ Erreur serveur '+r.status;s.style.color='#FF8C00';if(btn)btn.style.background='#FF8C00';}
-    }catch(e){s.textContent='❌ Réseau: '+e.message;s.style.color='#E0115F';if(btn)btn.style.background='#E0115F';}
+    if(!k){alert('❌ Saisissez la clé admin !');return;}
+    alert('⏳ Test en cours...');
+    fetch(API_BASE+'/vrp/stats',{method:'GET',headers:{'x-admin-key':k}})
+    .then(function(r){
+        if(r.status===401||r.status===403){alert('❌ Clé incorrecte');}
+        else if(r.ok){alert('✅ Clé valide');}
+        else{alert('⚠️ Erreur serveur: '+r.status);}
+    })
+    .catch(function(e){alert('❌ Réseau: '+e.message);});
 }
 
 function verifySheet(){
