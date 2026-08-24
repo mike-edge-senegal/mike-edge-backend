@@ -1,7 +1,11 @@
+// ============================================
+// MODULE 3 : database.js — MIKE EDGE V11.17
+// ============================================
 const { Pool } = require('pg');
 const { validateParsedImport } = require('./validator');
 const { PARSER_VERSION, normalizeFrenchText, REGEX_NON_DB_CHARS } = require('./parser');
 
+// 🔒 V11.16 FIX : Support DATABASE_URL (Render/Supabase) + SSL conditionnel
 const poolConfig = process.env.DATABASE_URL
   ? {
       connectionString: process.env.DATABASE_URL,
@@ -28,10 +32,11 @@ const poolConfig = process.env.DATABASE_URL
 
 const pool = new Pool(poolConfig);
 
+// 🩺 V11.16 FIX : Test de connexion au boot (log Render immédiat)
 pool.query('SELECT 1')
-  .then(() => console.log('[DATABASE] Connexion PostgreSQL etablie'))
+  .then(() => console.log('[DATABASE] ✅ Connexion PostgreSQL établie — Module 3 actif'))
   .catch((err) => {
-    console.error('[DATABASE] ECHEC CONNEXION PostgreSQL :', err.message);
+    console.error('[DATABASE] 🔴 ÉCHEC CONNEXION PostgreSQL :', err.message);
     console.error('[DATABASE] Code :', err.code, '| Detail :', err.detail);
   });
 
@@ -39,6 +44,7 @@ function normalizeDatabaseName(value) {
     return normalizeFrenchText(value).replace(REGEX_NON_DB_CHARS, '');
 }
 
+// 🔧 V11.17 FIX : Auto-création de la ligue si inconnue
 async function getLeagueIdStrict(client, leagueName) {
     if (!leagueName) throw new Error('ERR_UNKNOWN_LEAGUE');
     const normalized = normalizeDatabaseName(leagueName);
@@ -56,6 +62,7 @@ async function getLeagueIdStrict(client, leagueName) {
     return insert.rows[0].id;
 }
 
+// 🔧 V11.17 FIX : Auto-création de l'équipe si inconnue
 async function getTeamIdStrict(client, teamName, leagueId) {
     if (!teamName) throw new Error('ERR_UNKNOWN_TEAM');
     const normalized = normalizeDatabaseName(teamName);
@@ -162,7 +169,7 @@ async function savePublicationTransaction(parsedData, targetPublicationId = null
 
         if (matchResult.rows.length === 0) {
             await client.query('ROLLBACK');
-            return { success: false, code: 'ERR_DUPLICATE_MATCH', message: 'Ce match existe deja pour cette publication.' };
+            return { success: false, code: 'ERR_DUPLICATE_MATCH', message: 'Ce match existe déjà pour cette publication.' };
         }
 
         const matchId = matchResult.rows[0].id;
@@ -182,18 +189,29 @@ async function savePublicationTransaction(parsedData, targetPublicationId = null
                 [userId, parsedData.raw_text_length || 0, Date.now() - startTime]
             );
         } catch (logErr) {
-            console.error('Echec log import (non bloquant):', logErr.message);
+            console.error('⚠️ Échec log import (non bloquant):', logErr.message);
         }
 
         await client.query('COMMIT');
         return { success: true, publication_id: publicationId, match_id: matchId, warnings: validation.warnings };
 
     } catch (error) {
-        console.error('[DATABASE] ERREUR TRANSACTION :', error.message);
+        // 🔴 V11.16 FIX : Log systématique de toute erreur non métier
+        console.error('[DATABASE] 🔴 ERREUR TRANSACTION :', error.message);
         console.error('[DATABASE] Code SQL :', error.code);
         console.error('[DATABASE] Stack :', error.stack);
 
-        if (client) await client.query('ROLLBACK').catch(rbErr => console.error('Echec du ROLLBACK:', rbErr.message));
+        if (client) await client.query('ROLLBACK').catch(rbErr => console.error('❌ Échec du ROLLBACK:', rbErr.message));
 
         if (error && error.code === '23505')
-            return {
+            return { success: false, code: 'ERR_DUPLICATE_MATCH', message: 'Ce match existe déjà pour cette publication.' };
+
+        const businessCode = error.message ? error.message.match(/^ERR_[A-Z_]+/)?.[0] : null;
+        return { success: false, code: businessCode || error.code || 'ERR_DATABASE', message: error.message };
+
+    } finally {
+        if (client) client.release();
+    }
+}
+
+module.exports = { savePublicationTransaction, closePool: async () => await pool.end(), pool };
