@@ -116,7 +116,6 @@ th{background-color:rgba(212,175,55,0.1);color:var(--gold)}
 .pronos-alert.err{ background:rgba(224,17,95,0.15); color:var(--alert-red); border:1px solid var(--alert-red) }
 .pronos-alert.info{ background:rgba(80,200,120,0.1); color:var(--emerald-success); border:1px solid var(--emerald-success) }
 </style>
-</style>
 </head>
 <body>
 
@@ -317,15 +316,20 @@ function setLoading(on,text){
     btns.forEach(function(id){var b=document.getElementById(id);if(b)b.disabled=on});
 }
 
-function getAdminKey(){var k=document.getElementById('adminKeyInput').value.trim();if(!k)throw new Error("Saisissez la clé admin !");return k}
+function getAdminKey(){return document.getElementById('adminKeyInput').value.trim()}
 
 async function testAdminKey(){
     var s=document.getElementById('authStatus');
-    try{var k=getAdminKey();s.textContent="Test...";s.style.color="#FF8C00";
-        var r=await fetch(API_BASE+'/import',{method:'POST',headers:{'Content-Type':'application/json','x-admin-key':k},body:JSON.stringify({raw_text:''})});
-        if(r.status===403||r.status===401){s.textContent="❌ Clé incorrecte";s.style.color="var(--alert-red)"}
-        else{s.textContent="✅ Clé valide";s.style.color="var(--emerald-success)"}
-    }catch(e){s.textContent="❌ "+e.name+": "+e.message;s.style.color="var(--alert-red)"}
+    if(!s)return;
+    var k=document.getElementById('adminKeyInput').value.trim();
+    if(!k){s.textContent="❌ Saisissez la clé admin !";s.style.color="#E0115F";return;}
+    s.textContent="⏳ Vérification...";s.style.color="#FF8C00";
+    try{
+        var r=await fetch(API_BASE+'/vrp/stats',{method:'GET',headers:{'x-admin-key':k}});
+        if(r.status===401||r.status===403){s.textContent="❌ Clé incorrecte";s.style.color="#E0115F";}
+        else if(r.ok){s.textContent="✅ Clé valide";s.style.color="#50C878";}
+        else{s.textContent="⚠️ Erreur serveur "+r.status;s.style.color="#FF8C00";}
+    }catch(e){s.textContent="❌ Réseau indisponible";s.style.color="#E0115F";}
 }
 
 function verifySheet(){
@@ -998,4 +1002,4 @@ async function publierFiche(){
 }
 </script>
 </body>
-</html>
+  </html>
