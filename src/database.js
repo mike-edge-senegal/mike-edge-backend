@@ -1,72 +1,199 @@
- import React from 'react';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { NavigationContainer } from '@react-navigation/native';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { COLORS } from './src/theme';
+const { Pool } = require('pg');
+const { validateParsedImport } = require('./validator');
+const { PARSER_VERSION, normalizeFrenchText, REGEX_NON_DB_CHARS } = require('./parser');
 
-// ==================== IMPORTATION DES 16 ÉCRANS SCELLÉS ====================
-import SplashScreen from './src/screens/SplashScreen';
-import LoginScreen from './src/screens/LoginScreen';
-import RegisterScreen from './src/screens/RegisterScreen';
-import OTPScreen from './src/screens/OTPScreen';
-import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen';
-import HomeScreen from './src/screens/HomeScreen';
-import TicketReaderScreen from './src/screens/TicketReaderScreen';
-import EliteScreen from './src/screens/EliteScreen';
-import LeaguesScreen from './src/screens/LeaguesScreen';
-import EuropeScreen from './src/screens/EuropeScreen';
-import WorldScreen from './src/screens/WorldScreen';
-import MatchDetailScreen from './src/screens/MatchDetailScreen';
-import KioskScreen from './src/screens/KioskScreen';
-import MagazineReaderScreen from './src/screens/MagazineReaderScreen';
-import ProfileScreen from './src/screens/ProfileScreen';
-import SupportScreen from './src/screens/SupportScreen';
+const poolConfig = process.env.DATABASE_URL
+  ? {
+      connectionString: process.env.DATABASE_URL,
+      max: 20,
+      ssl: process.env.NODE_ENV === 'production'
+        ? { rejectUnauthorized: false }
+        : false,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 5000,
+    }
+  : {
+      user: process.env.DB_USER,
+      host: process.env.DB_HOST || 'localhost',
+      database: process.env.DB_NAME || 'mike_edge_db',
+      password: process.env.DB_PASSWORD,
+      port: process.env.DB_PORT || 5432,
+      max: 20,
+      ssl: process.env.NODE_ENV === 'production'
+        ? { rejectUnauthorized: false }
+        : false,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 5000,
+    };
 
-const Stack = createNativeStackNavigator();
+const pool = new Pool(poolConfig);
 
-/**
- * 🏆 APPLICATION PRINCIPALE MIKE EDGE (APP.JS - SCELLÉ V3.5)
- * Navigation Stack complète (16 Écrans / Zéro Stub)
- */
-export default function App() {
-  return (
-    <SafeAreaProvider>
-      <NavigationContainer>
-        <Stack.Navigator
-          initialRouteName="Splash"
-          screenOptions={{
-            headerShown: false, 
-            animation: 'fade',
-            contentStyle: { backgroundColor: COLORS.BACKGROUND_DARK },
-          }}
-        >
-          {/* BLOC 1 : ACCÈS & AUTHENTIFICATION */}
-          <Stack.Screen name="Splash" component={SplashScreen} />
-          <Stack.Screen name="Login" component={LoginScreen} />
-          <Stack.Screen name="Register" component={RegisterScreen} />
-          <Stack.Screen name="OTP" component={OTPScreen} />
-          <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+pool.query('SELECT 1')
+  .then(() => console.log('[DATABASE] Connexion PostgreSQL etablie'))
+  .catch((err) => {
+    console.error('[DATABASE] ECHEC CONNEXION PostgreSQL :', err.message);
+    console.error('[DATABASE] Code :', err.code, '| Detail :', err.detail);
+  });
 
-          {/* BLOC 2 : ACCUEIL & TICKETS HD */}
-          <Stack.Screen name="Home" component={HomeScreen} />
-          <Stack.Screen name="TicketReader" component={TicketReaderScreen} />
-
-          {/* BLOC 3 : MATCHS & CLASSEMENTS DYNAMIQUES */}
-          <Stack.Screen name="Elite" component={EliteScreen} />
-          <Stack.Screen name="Leagues" component={LeaguesScreen} />
-          <Stack.Screen name="Europe" component={EuropeScreen} />
-          <Stack.Screen name="World" component={WorldScreen} />
-          <Stack.Screen name="MatchDetail" component={MatchDetailScreen} />
-
-          {/* BLOC 4 : MAGAZINE HD */}
-          <Stack.Screen name="Magazine" component={KioskScreen} />
-          <Stack.Screen name="MagazineReader" component={MagazineReaderScreen} />
-
-          {/* BLOC 5 : ABONNÉ & SUPPORT */}
-          <Stack.Screen name="Profile" component={ProfileScreen} />
-          <Stack.Screen name="Support" component={SupportScreen} />
-        </Stack.Navigator>
-      </NavigationContainer>
-    </SafeAreaProvider>
-  );
+function normalizeDatabaseName(value) {
+    return normalizeFrenchText(value).replace(REGEX_NON_DB_CHARS, '');
 }
+
+async function getLeagueIdStrict(client, leagueName) {
+    if (!leagueName) throw new Error('ERR_UNKNOWN_LEAGUE');
+    const normalized = normalizeDatabaseName(leagueName);
+    const result = await client.query(
+        `SELECT id FROM leagues WHERE LOWER(REGEXP_REPLACE(unaccent(name), '[^a-zA-Z0-9]', '', 'g')) = $1`,
+        [normalized]
+    );
+    if (result.rows.length > 0) return result.rows[0].id;
+    
+    const insert = await client.query(
+        `INSERT INTO leagues (name) VALUES ($1) RETURNING id`,
+        [leagueName.trim()]
+    );
+    console.log('[DB AUTO] Ligue creee : ' + leagueName.trim() + ' (ID:' + insert.rows[0].id + ')');
+    return insert.rows[0].id;
+}
+
+async function getTeamIdStrict(client, teamName, leagueId) {
+    if (!teamName) throw new Error('ERR_UNKNOWN_TEAM');
+    const normalized = normalizeDatabaseName(teamName);
+    let result = await client.query(
+        `SELECT id FROM teams WHERE LOWER(REGEXP_REPLACE(unaccent(name), '[^a-zA-Z0-9]', '', 'g')) = $1 AND league_id = $2`,
+        [normalized, leagueId]
+    );
+    if (result.rows.length > 0) return result.rows[0].id;
+    
+    result = await client.query(
+        `SELECT id FROM teams WHERE LOWER(REGEXP_REPLACE(unaccent(name), '[^a-zA-Z0-9]', '', 'g')) = $1 LIMIT 1`,
+        [normalized]
+    );
+    if (result.rows.length > 0) return result.rows[0].id;
+    
+    const insert = await client.query(
+        `INSERT INTO teams (name, league_id) VALUES ($1, $2) RETURNING id`,
+        [teamName.trim(), leagueId]
+    );
+    console.log('[DB AUTO] Equipe creee : ' + teamName.trim() + ' (ID:' + insert.rows[0].id + ')');
+    return insert.rows[0].id;
+}
+
+function buildRobustIsoDatetime(dateStr, timeStr) {
+    if (!dateStr || !timeStr) throw new Error('ERR_MISSING_DATETIME');
+    const normalizedDate = normalizeFrenchText(dateStr);
+    let year, month, day;
+    const frenchDateMatch = normalizedDate.match(/(?:[\p{Letter}\p{Mark}]+\s+)?(\d{1,2})\s+(janvier|fevrier|mars|avril|mai|juin|juillet|aout|septembre|octobre|novembre|decembre)(?:\s+(\d{2,4}))?/iu);
+    if (frenchDateMatch) {
+        const months = { janvier: 1, fevrier: 2, mars: 3, avril: 4, mai: 5, juin: 6, juillet: 7, aout: 8, septembre: 9, octobre: 10, novembre: 11, decembre: 12 };
+        day = Number(frenchDateMatch[1]);
+        month = months[frenchDateMatch[2]];
+        year = frenchDateMatch[3] ? (Number(frenchDateMatch[3]) < 100 ? 2000 + Number(frenchDateMatch[3]) : Number(frenchDateMatch[3])) : new Date().getUTCFullYear();
+    } else {
+        let numericMatch = normalizedDate.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
+        if (numericMatch) {
+            year = Number(numericMatch[1]);
+            month = Number(numericMatch[2]);
+            day = Number(numericMatch[3]);
+        } else {
+            numericMatch = normalizedDate.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](20\d{2}|\d{2})$/);
+            if (numericMatch) {
+                day = Number(numericMatch[1]);
+                month = Number(numericMatch[2]);
+                const rawYear = Number(numericMatch[3]);
+                year = rawYear < 100 ? 2000 + rawYear : rawYear;
+            }
+        }
+    }
+    if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day) || month < 1 || month > 12 || day < 1 || day > 31)
+        throw new Error('ERR_INVALID_DATE_FORMAT');
+    const timeParts = String(timeStr).split(':');
+    const hour = Number(timeParts[0]);
+    const minute = Number(timeParts[1]);
+    if (hour < 0 || hour > 23 || minute < 0 || minute > 59) throw new Error('ERR_INVALID_TIME');
+    const date = new Date(Date.UTC(year, month - 1, day, hour, minute, 0, 0));
+    if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day || date.getUTCHours() !== hour || date.getUTCMinutes() !== minute)
+        throw new Error('ERR_INVALID_CALENDAR_DATE');
+    return date;
+}
+
+async function insertBetRow(client, matchId, bet) {
+    const isBanned = bet.section_type === 'BANNED';
+    await client.query(
+        `INSERT INTO bets (match_id, section_type, rank_in_section, market_name, odds, probability_pct, robustness_pct, confidence_stars, comment)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [matchId, bet.section_type, bet.rank_in_section, bet.market_name, isBanned ? null : bet.odds, bet.probability_pct ?? null, bet.robustness_pct ?? null, isBanned ? null : bet.confidence_stars, bet.comment || null]
+    );
+}
+
+async function savePublicationTransaction(parsedData, targetPublicationId = null, userId = null) {
+    let client;
+    const startTime = Date.now();
+    const validation = validateParsedImport(parsedData);
+    if (!validation.is_valid)
+        return { success: false, code: 'ERR_VALIDATION_FAILED', errors: validation.errors, warnings: validation.warnings };
+
+    try {
+        client = await pool.connect();
+        await client.query('BEGIN');
+
+        const leagueId = await getLeagueIdStrict(client, parsedData.match_info.league_name);
+        const homeTeamId = await getTeamIdStrict(client, parsedData.match_info.home_team, leagueId);
+        const awayTeamId = await getTeamIdStrict(client, parsedData.match_info.away_team, leagueId);
+        const matchDatetime = buildRobustIsoDatetime(parsedData.match_info.date_str, parsedData.match_info.time_str);
+
+        let publicationId = targetPublicationId;
+        if (!publicationId) {
+            const title = parsedData.publication_title || `${parsedData.match_info.home_team} vs ${parsedData.match_info.away_team} — ${parsedData.match_info.league_name}`;
+            const publicationResult = await client.query(
+                `INSERT INTO publications (title, start_date, end_date, status, protocol_version)
+                 VALUES ($1, $2, $3, 'DRAFT', $4) RETURNING id`,
+                [title, matchDatetime, new Date(matchDatetime.getTime() + 3 * 24 * 60 * 60 * 1000), PARSER_VERSION]
+            );
+            publicationId = publicationResult.rows[0].id;
+        }
+
+        const matchResult = await client.query(
+            `INSERT INTO matches (publication_id, league_id, home_team_id, away_team_id, match_datetime, irg_index)
+             VALUES ($1, $2, $3, $4, $5, $6)
+             ON CONFLICT (publication_id, home_team_id, away_team_id, match_datetime) DO NOTHING RETURNING id`,
+            [publicationId, leagueId, homeTeamId, awayTeamId, matchDatetime, parsedData.match_info.irg_index]
+        );
+
+        if (matchResult.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return { success: false, code: 'ERR_DUPLICATE_MATCH', message: 'Ce match existe deja pour cette publication.' };
+        }
+
+        const matchId = matchResult.rows[0].id;
+        await client.query(
+            `INSERT INTO match_category_rankings (match_id, publication_id, category_name, rank_in_category)
+             VALUES ($1, $2, $3, $4)`,
+            [matchId, publicationId, parsedData.match_info.category_name, parsedData.match_info.rank_in_category]
+        );
+
+        const bets = [parsedData.pari_du_jour, ...parsedData.top_5_premium, ...parsedData.top_3_opportunites, parsedData.value_bet_premium, parsedData.value_bet_speculatif, parsedData.ticket_combine, ...parsedData.paris_a_bannir].filter(Boolean);
+        for (const bet of bets) await insertBetRow(client, matchId, bet);
+
+        try {
+            await client.query(
+                `INSERT INTO import_logs (user_id, status, raw_text_length, execution_time_ms)
+                 VALUES ($1, 'SUCCESS', $2, $3)`,
+                [userId, parsedData.raw_text_length || 0, Date.now() - startTime]
+            );
+        } catch (logErr) {
+            console.error('Echec log import (non bloquant):', logErr.message);
+        }
+
+        await client.query('COMMIT');
+        return { success: true, publication_id: publicationId, match_id: matchId, warnings: validation.warnings };
+
+    } catch (error) {
+        console.error('[DATABASE] ERREUR TRANSACTION :', error.message);
+        console.error('[DATABASE] Code SQL :', error.code);
+        console.error('[DATABASE] Stack :', error.stack);
+
+        if (client) await client.query('ROLLBACK').catch(rbErr => console.error('Echec du ROLLBACK:', rbErr.message));
+
+        if (error && error.code === '23505')
+            return {
