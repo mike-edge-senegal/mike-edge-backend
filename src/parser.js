@@ -1,5 +1,5 @@
-  // MODULE 1 : parser.js (V11.14 GOLD MASTER)
-const PARSER_VERSION = 'V11.14 GOLD MASTER';
+// MODULE 1 : parser.js (V11.14 GOLD MASTER)
+const PARSER_VERSION = 'V11.17';
 const MAX_RAW_TEXT_LENGTH = 50000;
 const REGEX_UNICODE_SPACES = /\s+/g;
 const REGEX_ACCENTS = /[\u0300-\u036f]/g;
@@ -149,7 +149,7 @@ function extractPercentage(block) {
         const match = line.match(/(?:Probabilité|PROBABILITE|Proba)[^:]*:\s*([\d.,]+)\s*%/iu); 
         if (match) { 
             const val = Number(match[1].replace(',', '.')); 
-            return Number.isFinite(val) ? val : null; 
+            return Number.isFinite(val) ? Math.round(val) : null; 
         } 
     } 
     return null; 
@@ -161,7 +161,7 @@ function extractScore100(block) {
         const match = line.match(/(?:Robustesse|ROBUSTESSE|ROB\b|Confiance|Conf\b)[^:]*:\s*(\d+(?:[.,]\d+)?)\s*(?:\/\s*100)?/iu); 
         if (match) { 
             const val = Number(match[1].replace(',', '.')); 
-            return Number.isFinite(val) ? val : null; 
+            return Number.isFinite(val) ? Math.round(val) : null; 
         } 
     } 
     return null; 
@@ -336,7 +336,7 @@ function parseTelegramText(rawText) {
             market_name: 'Ticket Combiné Premium', 
             odds: extractAnyOdds(ticketSection, 'COTE_TOTALE') ?? extractAnyOdds(ticketSection, 'Cote'), 
             confidence_stars: extractConfidenceStarsOrText(ticketSection), 
-            comment: [sel1, sel2].filter(Boolean).join(' + ') || 'Sélections d’élite combinées' 
+            comment: [sel1, sel2].filter(Boolean).join(' + ') || 'Sélections d'élite combinées' 
         }; 
     } 
 
