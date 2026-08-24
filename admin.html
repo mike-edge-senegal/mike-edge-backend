@@ -124,7 +124,7 @@ th{background-color:rgba(212,175,55,0.1);color:var(--gold)}
 
 <div style="text-align:center;margin-bottom:16px;padding-top:10px;">
 <h1 style="font-size:20px;color:var(--gold);letter-spacing:1px;">🎛️ COCKPIT ADMIN MIKE EDGE</h1>
-<p style="font-size:11px;color:var(--text-muted);margin-top:2px;">V11.17 FIX CLICKS</p>
+<p style="font-size:11px;color:var(--text-muted);margin-top:2px;">V11.17 FIX PARSER+CLICKS</p>
 <p id="apiUrlDisplay" style="font-size:10px;color:#666;margin-top:4px;"></p>
 </div>
 
@@ -333,29 +333,6 @@ async function testAdminKey(){
         else{s.textContent='⚠️ Erreur serveur '+r.status;s.style.color='#FF8C00';b.style.background='#FF8C00';}
     }catch(e){b.disabled=false;s.textContent='❌ Réseau indisponible';s.style.color='#E0115F';b.style.background='#E0115F';}
 }
-
-document.addEventListener('DOMContentLoaded',function(){
-    var btn=document.getElementById('testKeyBtn');
-    if(btn){
-        btn.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();testAdminKey();});
-        btn.addEventListener('touchstart',function(e){e.preventDefault();e.stopPropagation();testAdminKey();},{passive:false});
-    }
-    var btnA=document.getElementById('btnAnalyser');
-    if(btnA){
-        btnA.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();analyserFiche();});
-        btnA.addEventListener('touchstart',function(e){e.preventDefault();e.stopPropagation();analyserFiche();},{passive:false});
-    }
-    var btnP=document.getElementById('btnPublier');
-    if(btnP){
-        btnP.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();publierFiche();});
-        btnP.addEventListener('touchstart',function(e){e.preventDefault();e.stopPropagation();publierFiche();},{passive:false});
-    }
-    var btnR=document.getElementById('btnRetour');
-    if(btnR){
-        btnR.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();showPronosDashboard();});
-        btnR.addEventListener('touchstart',function(e){e.preventDefault();e.stopPropagation();showPronosDashboard();},{passive:false});
-    }
-});
 
 function verifySheet(){
     var text=document.getElementById('rawTextInput').value.trim();
@@ -598,8 +575,8 @@ function extractTeamsClient(raw){
 }
 function extractLineClient(block,kw){
     if(!block)return null;
-    const nk=normalizeHeaderClient(kw);
-    const line=block.split(/\r?\n/).find(l=>normalizeHeaderClient(l).includes(nk));
+    const re=new RegExp(escapeRegExpClient(kw),'iu');
+    const line=block.split(/\r?\n/).find(l=>re.test(l));
     return line?line.trim():null;
 }
 function extractOddsClient(block,tag){
@@ -641,7 +618,7 @@ function extractMarketClient(block,labels){
     if(!block)return null;
     for(const line of block.split(/\r?\n/)){
         for(const label of labels){
-            const m=line.match(new RegExp('(?:^|\||\s)'+escapeRegExpClient(label)+'\s*(?::|—|-)?\s*([^|\n]+?)(?=\s*(?:COTE|Cote|PROBA|PROBABILITE|ROBUSTESSE|ROB|ETOILES|STARS|\||$))','iu'));
+            const m=line.match(new RegExp('(?:^|\||\s)'+escapeRegExpClient(label)+'\s*(?::|—|-)?\s*([^|\n]+?)(?=\s*(?:COTE|Cote|PROBA|PROBABILITE|ROBUSTESSE|ROB|ETOILES|STARS|\||$))','ium'));
             if(m&&m[1].trim())return m[1].trim();
         }
     }
@@ -774,7 +751,39 @@ let currentCat=null;
 let currentParsed=null;
 let existingMatches={};
 
-window.addEventListener('DOMContentLoaded', loadDashboard);
+window.addEventListener('DOMContentLoaded', function(){
+    loadDashboard();
+    var btn=document.getElementById('testKeyBtn');
+    if(btn){btn.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();testAdminKey();});btn.addEventListener('touchstart',function(e){e.preventDefault();e.stopPropagation();testAdminKey();},{passive:false});}
+    var btnA=document.getElementById('btnAnalyser');
+    if(btnA){btnA.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();analyserFiche();});btnA.addEventListener('touchstart',function(e){e.preventDefault();e.stopPropagation();analyserFiche();},{passive:false});}
+    var btnP=document.getElementById('btnPublier');
+    if(btnP){btnP.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();publierFiche();});btnP.addEventListener('touchstart',function(e){e.preventDefault();e.stopPropagation();publierFiche();},{passive:false});}
+    var btnR=document.getElementById('btnRetour');
+    if(btnR){btnR.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();showPronosDashboard();});btnR.addEventListener('touchstart',function(e){e.preventDefault();e.stopPropagation();showPronosDashboard();},{passive:false});}
+    var previewBox=document.getElementById('fichePreview');
+    if(previewBox){
+        previewBox.addEventListener('click',function(e){
+            var target=e.target.closest('[data-action]');if(!target)return;
+            var action=target.dataset.action,sec=target.dataset.sec,idx=parseInt(target.dataset.idx);
+            if(action==='edit')toggleEdit(sec,idx);
+            else if(action==='delete')deleteCard(sec,idx);
+            else if(action==='star')setEditStar(target,parseInt(target.dataset.star));
+            else if(action==='save')saveEdit(sec,idx);
+            else if(action==='cancel')cancelEdit(sec,idx);
+        });
+        previewBox.addEventListener('touchstart',function(e){
+            var target=e.target.closest('[data-action]');if(!target)return;
+            e.preventDefault();e.stopPropagation();
+            var action=target.dataset.action,sec=target.dataset.sec,idx=parseInt(target.dataset.idx);
+            if(action==='edit')toggleEdit(sec,idx);
+            else if(action==='delete')deleteCard(sec,idx);
+            else if(action==='star')setEditStar(target,parseInt(target.dataset.star));
+            else if(action==='save')saveEdit(sec,idx);
+            else if(action==='cancel')cancelEdit(sec,idx);
+        },{passive:false});
+    }
+});
 
 async function loadDashboard(){
     document.getElementById('pronosGlobalStatus').textContent='⏳ Sync...';
@@ -899,7 +908,7 @@ function renderPreview(parsed){
             }
             if(item.comment) metricsHtml+=`<span class="preview-metric"><b>Note:</b> ${item.comment}</span>`;
 
-            card.innerHTML=`<div class="preview-rank">${rankLabel}</div><div class="preview-market">${item.market_name||'<span style="color:var(--alert-red)">Marché non détecté</span>'}</div><div class="preview-metrics">${metricsHtml}</div><div class="preview-actions"><button onclick="toggleEdit('${sec.key}',${idx})">✏️ Modifier</button>${item.section_type!=='BANNED'?`<button onclick="deleteCard('${sec.key}',${idx})">🗑️ Supprimer</button>`:''}</div>`;
+            card.innerHTML=`<div class="preview-rank">${rankLabel}</div><div class="preview-market">${item.market_name||'<span style="color:var(--alert-red)">Marché non détecté</span>'}</div><div class="preview-metrics">${metricsHtml}</div><div class="preview-actions"><button data-action="edit" data-sec="${sec.key}" data-idx="${idx}">✏️ Modifier</button>${item.section_type!=='BANNED'?`<button data-action="delete" data-sec="${sec.key}" data-idx="${idx}">🗑️ Supprimer</button>`:''}</div>`;
             wrap.appendChild(card);
 
             // Formulaire d'édition caché
@@ -908,8 +917,8 @@ function renderPreview(parsed){
             editForm.id=`edit-${sec.key}-${idx}`;
             const isBanned=item.section_type==='BANNED';
             let starsHtml='';
-            for(let s=1;s<=5;s++){ starsHtml+=`<button type="button" class="edit-star ${(item.confidence_stars||0)>=s?'on':''}" onclick="setEditStar(this,${s})">⭐</button>`; }
-            editForm.innerHTML=`<input type="text" id="edit-market-${sec.key}-${idx}" placeholder="Marché" value="${(item.market_name||'').replace(/"/g,'&quot;')}">${isBanned?'':`<input type="number" step="0.01" id="edit-odds-${sec.key}-${idx}" placeholder="Cote" value="${item.odds??''}"><input type="number" id="edit-proba-${sec.key}-${idx}" placeholder="Probabilité %" value="${item.probability_pct??''}"><input type="number" id="edit-rob-${sec.key}-${idx}" placeholder="Robustesse %" value="${item.robustness_pct??''}"><div class="edit-stars" id="edit-stars-${sec.key}-${idx}">${starsHtml}</div>`}<div class="edit-actions"><button class="btn btn-emerald" onclick="saveEdit('${sec.key}',${idx})">✓ Valider</button><button class="btn" style="background:rgba(255,255,255,0.1);color:var(--text-primary)" onclick="cancelEdit('${sec.key}',${idx})">Annuler</button></div>`;
+            for(let s=1;s<=5;s++){ starsHtml+=`<button type="button" class="edit-star ${(item.confidence_stars||0)>=s?'on':''}" data-action="star" data-sec="${sec.key}" data-idx="${idx}" data-star="${s}">⭐</button>`; }
+            editForm.innerHTML=`<input type="text" id="edit-market-${sec.key}-${idx}" placeholder="Marché" value="${(item.market_name||'').replace(/"/g,'&quot;')}">${isBanned?'':`<input type="number" step="0.01" id="edit-odds-${sec.key}-${idx}" placeholder="Cote" value="${item.odds??''}"><input type="number" id="edit-proba-${sec.key}-${idx}" placeholder="Probabilité %" value="${item.probability_pct??''}"><input type="number" id="edit-rob-${sec.key}-${idx}" placeholder="Robustesse %" value="${item.robustness_pct??''}"><div class="edit-stars" id="edit-stars-${sec.key}-${idx}">${starsHtml}</div>`}<div class="edit-actions"><button class="btn btn-emerald" data-action="save" data-sec="${sec.key}" data-idx="${idx}">✓ Valider</button><button class="btn" style="background:rgba(255,255,255,0.1);color:var(--text-primary)" data-action="cancel" data-sec="${sec.key}" data-idx="${idx}">Annuler</button></div>`;
             wrap.appendChild(editForm);
         });
         box.appendChild(wrap);
