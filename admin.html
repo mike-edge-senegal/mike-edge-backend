@@ -124,17 +124,18 @@ th{background-color:rgba(212,175,55,0.1);color:var(--gold)}
 
 <div style="text-align:center;margin-bottom:16px;padding-top:10px;">
 <h1 style="font-size:20px;color:var(--gold);letter-spacing:1px;">🎛️ COCKPIT ADMIN MIKE EDGE</h1>
-<p style="font-size:11px;color:var(--text-muted);margin-top:2px;">V11.17 DEBUG ALERT</p>
+<p style="font-size:11px;color:var(--text-muted);margin-top:2px;">V11.17 CLICK FIX</p>
 <p id="apiUrlDisplay" style="font-size:10px;color:#666;margin-top:4px;"></p>
 </div>
 
 <div id="connectionBanner" class="conn-checking">⏳ DIAGNOSTIC EN COURS...</div>
 
-<div class="card" style="background:rgba(212,175,55,0.05);">
-<label class="label">🔐 Clé Admin Secrète :</label>
-<input type="password" id="adminKeyInput" placeholder="Saisir la clé secrète..." autocomplete="off">
-<button class="btn btn-blue" style="padding:10px;font-size:12px;margin-top:6px;" onclick="alert('CLICK DETECTE');testAdminKey();">🧪 TESTER LE MOT DE PASSE</button>
-<div id="authStatus" style="font-size:11px;margin-top:8px;font-weight:bold;text-align:center;"></div>
+<div style="background:#161B22;border:1px solid rgba(212,175,55,0.3);border-radius:16px;padding:16px;margin-bottom:16px;">
+<label style="font-size:11px;font-weight:700;color:#8B949E;text-transform:uppercase;margin-bottom:6px;display:block;">🔐 CLÉ ADMIN SECRÈTE :</label>
+<input type="password" id="adminKeyInput" placeholder="Saisir la clé secrète..." autocomplete="off" style="width:100%;background:#0D1117;border:1px solid rgba(212,175,55,0.3);border-radius:10px;padding:12px;color:#F0F6FC;font-size:14px;margin-bottom:10px;">
+<button id="testKeyBtn" style="width:100%;padding:14px;border:none;border-radius:12px;font-weight:800;font-size:14px;text-transform:uppercase;cursor:pointer;background:#0055FF;color:white;letter-spacing:0.5px;position:relative;z-index:9999;pointer-events:auto;-webkit-tap-highlight-color:rgba(0,0,0,0);touch-action:manipulation;">🧪 TESTER LE MOT DE PASSE</button>
+<div id="authStatus" style="font-size:13px;margin-top:10px;font-weight:800;text-align:center;min-height:20px;"></div>
+<div id="authDebug" style="font-size:10px;margin-top:4px;text-align:center;color:#666;min-height:14px;"></div>
 </div>
 
 
@@ -318,18 +319,33 @@ function setLoading(on,text){
 
 function getAdminKey(){return document.getElementById('adminKeyInput').value.trim()}
 
-function testAdminKey(){
+async function testAdminKey(){
+    var s=document.getElementById('authStatus');
+    var d=document.getElementById('authDebug');
+    var b=document.getElementById('testKeyBtn');
+    if(!s||!b){alert('ERREUR INTERNE: elements manquants');return;}
     var k=document.getElementById('adminKeyInput').value.trim();
-    if(!k){alert('❌ Saisissez la clé admin !');return;}
-    alert('⏳ Test en cours...');
-    fetch(API_BASE+'/vrp/stats',{method:'GET',headers:{'x-admin-key':k}})
-    .then(function(r){
-        if(r.status===401||r.status===403){alert('❌ Clé incorrecte');}
-        else if(r.ok){alert('✅ Clé valide');}
-        else{alert('⚠️ Erreur serveur: '+r.status);}
-    })
-    .catch(function(e){alert('❌ Réseau: '+e.message);});
+    if(!k){s.textContent='❌ Saisissez la clé admin !';s.style.color='#E0115F';d.textContent='[champ vide]';b.style.background='#E0115F';return;}
+    s.textContent='⏳ Vérification...';s.style.color='#FF8C00';d.textContent='[appel API...]';b.style.background='#FF8C00';b.disabled=true;
+    try{
+        var r=await fetch(API_BASE+'/vrp/stats',{method:'GET',headers:{'x-admin-key':k}});
+        b.disabled=false;
+        if(r.status===401||r.status===403){s.textContent='❌ Clé incorrecte';s.style.color='#E0115F';d.textContent='[status '+r.status+']';b.style.background='#E0115F';}
+        else if(r.ok){s.textContent='✅ Clé valide';s.style.color='#50C878';d.textContent='[status '+r.status+']';b.style.background='#50C878';}
+        else{s.textContent='⚠️ Erreur serveur '+r.status;s.style.color='#FF8C00';d.textContent='[status '+r.status+']';b.style.background='#FF8C00';}
+    }catch(e){b.disabled=false;s.textContent='❌ Réseau indisponible';s.style.color='#E0115F';d.textContent='['+e.message+']';b.style.background='#E0115F';}
 }
+
+// Écouteurs multiples pour garantir le clic sur mobile
+document.addEventListener('DOMContentLoaded',function(){
+    var btn=document.getElementById('testKeyBtn');
+    var dbg=document.getElementById('authDebug');
+    if(btn){
+        btn.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();testAdminKey();});
+        btn.addEventListener('touchstart',function(e){e.preventDefault();e.stopPropagation();testAdminKey();},{passive:false});
+        if(dbg)dbg.textContent='[bouton prêt]';
+    }else if(dbg){dbg.textContent='[ERREUR: bouton introuvable]';}
+});
 
 function verifySheet(){
     var text=document.getElementById('rawTextInput').value.trim();
