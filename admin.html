@@ -576,7 +576,7 @@ function extractTeamsClient(raw){
 function extractLineClient(block,kw){
     if(!block)return null;
     const re=new RegExp(escapeRegExpClient(kw),'iu');
-    const line=block.split(/\r?\n/).find(l=>re.test(l));
+    const line=block.split(/\r?\n/).find(l=>re.test(l.normalize('NFC')));
     return line?line.trim():null;
 }
 function extractOddsClient(block,tag){
@@ -617,9 +617,15 @@ function extractConfClient(block){
 function extractMarketClient(block,labels){
     if(!block)return null;
     for(const line of block.split(/\r?\n/)){
+        const trimmed=line.trim();
         for(const label of labels){
-            const m=line.match(new RegExp('(?:^|\||\s)'+escapeRegExpClient(label)+'\s*(?::|—|-)?\s*([^|\n]+?)(?=\s*(?:COTE|Cote|PROBA|PROBABILITE|ROBUSTESSE|ROB|ETOILES|STARS|\||$))','ium'));
-            if(m&&m[1].trim())return m[1].trim();
+            const m=trimmed.match(new RegExp('^\\s*'+escapeRegExpClient(label)+'\\s*(?::|—|-)\\s*(.+)$','ium'));
+            if(m){
+                let val=m[1].trim();
+                const pipeIdx=val.indexOf('|');
+                if(pipeIdx!==-1)val=val.substring(0,pipeIdx).trim();
+                if(val)return val;
+            }
         }
     }
     return null;
@@ -1036,4 +1042,4 @@ async function publierFiche(){
 }
 </script>
 </body>
-  </html>
+                                           </html>
