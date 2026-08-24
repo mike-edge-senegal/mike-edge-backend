@@ -1,7 +1,7 @@
 /**
- * 🏆 PROJET MIKE EDGE - SERVER.JS (V11.17.1)
+ * 🏆 PROJET MIKE EDGE - SERVER.JS (V11.17.2)
  * -------------------------------------------------------------------
- * FIX : Logs API /matches/:category + json_agg COALESCE
+ * FIX : LEFT JOIN dans /matches/:category + log debug MCR
  * -------------------------------------------------------------------
  */
 
@@ -260,7 +260,7 @@ app.get('/health', (req, res) => {
         success: true,
         status: 'UP',
         service: 'mike-edge-backend',
-        version: '11.17.1',
+        version: '11.17.2',
         timestamp: new Date().toISOString(),
         environment: process.env.NODE_ENV || 'development'
     });
@@ -319,7 +319,7 @@ app.get('/api/v1/vrp/stats', readLimiter, verifyAdminKey, async (req, res) => {
     }
 });
 
-// 🔧 V11.17.1 FIX : Logs + COALESCE json_agg
+// 🔧 V11.17.2 FIX : LEFT JOIN + debug log MCR count
 app.get('/api/v1/matches/:category', async (req, res) => {
     const category = req.params.category.toUpperCase();
     console.log('[API] GET /matches/' + category);
@@ -333,6 +333,11 @@ app.get('/api/v1/matches/:category', async (req, res) => {
         });
     }
     try {
+        // Debug : compter dans match_category_rankings seul
+        const countRes = await pool.query('SELECT COUNT(*) as cnt FROM match_category_rankings WHERE category_name = $1', [category]);
+        console.log('[API] MCR count pour', category, ':', countRes.rows[0].cnt);
+        
+        // Requête avec LEFT JOIN (plus permissive que INNER JOIN)
         const query = `
             SELECT 
                 m.id, m.match_datetime, m.irg_index,
@@ -341,11 +346,11 @@ app.get('/api/v1/matches/:category', async (req, res) => {
                 t2.name as away_team,
                 mcr.rank_in_category,
                 COALESCE((SELECT json_agg(b) FROM bets b WHERE b.match_id = m.id), '[]'::json) as bets
-            FROM matches m
-            JOIN leagues l ON m.league_id = l.id
-            JOIN teams t1 ON m.home_team_id = t1.id
-            JOIN teams t2 ON m.away_team_id = t2.id
-            JOIN match_category_rankings mcr ON m.id = mcr.match_id
+            FROM match_category_rankings mcr
+            LEFT JOIN matches m ON mcr.match_id = m.id
+            LEFT JOIN leagues l ON m.league_id = l.id
+            LEFT JOIN teams t1 ON m.home_team_id = t1.id
+            LEFT JOIN teams t2 ON m.away_team_id = t2.id
             WHERE mcr.category_name = $1
             ORDER BY mcr.rank_in_category ASC
             LIMIT 50;
@@ -374,9 +379,9 @@ app.get('/api/v1/matches/detail/:id', async (req, res) => {
                 t2.name as away_team,
                 COALESCE((SELECT json_agg(b) FROM bets b WHERE b.match_id = m.id), '[]'::json) as bets
             FROM matches m
-            JOIN leagues l ON m.league_id = l.id
-            JOIN teams t1 ON m.home_team_id = t1.id
-            JOIN teams t2 ON m.away_team_id = t2.id
+            LEFT JOIN leagues l ON m.league_id = l.id
+            LEFT JOIN teams t1 ON m.home_team_id = t1.id
+            LEFT JOIN teams t2 ON m.away_team_id = t2.id
             WHERE m.id = $1;
         `;
         const result = await pool.query(query, [matchId]);
@@ -489,7 +494,7 @@ app.post('/api/v1/payments/webhook', async (req, res) => {
         const referrerId = checkReferrer.rows[0]?.referred_by_id;
 
         if (referrerId) {
-            const countPayments = await client.query(`
+            const countPayments = await pool.query(`
                 SELECT COUNT(DISTINCT user_id) FROM payments 
                 WHERE user_id IN (SELECT id FROM users WHERE referred_by_id = $1)
                 AND status = 'SUCCESS'
@@ -554,7 +559,7 @@ app.use((err, req, res, next) => {
 // ==========================================
 
 const server = app.listen(PORT, () => {
-    console.log(`🟢 Serveur Mike Edge V11.17.1 connecté et démarré sur le port ${PORT}`);
+    console.log(`🟢 Serveur Mike Edge V11.17.2 connecté et démarré sur le port ${PORT}`);
 });
 
 const gracefulShutdown = async (signal) => {
