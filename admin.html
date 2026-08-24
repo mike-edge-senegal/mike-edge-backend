@@ -124,7 +124,7 @@ th{background-color:rgba(212,175,55,0.1);color:var(--gold)}
 
 <div style="text-align:center;margin-bottom:16px;padding-top:10px;">
 <h1 style="font-size:20px;color:var(--gold);letter-spacing:1px;">🎛️ COCKPIT ADMIN MIKE EDGE</h1>
-<p style="font-size:11px;color:var(--text-muted);margin-top:2px;">V11.17 FIX PARSER+CLICKS</p>
+<p style="font-size:11px;color:var(--text-muted);margin-top:2px;">V11.17 FIX INTEGER</p>
 <p id="apiUrlDisplay" style="font-size:10px;color:#666;margin-top:4px;"></p>
 </div>
 
@@ -591,7 +591,7 @@ function extractPctClient(block){
     if(!block)return null;
     for(const line of block.split(/\r?\n/)){
         const m=line.match(/(?:Probabilité|PROBABILITE|Proba)[^:]*:\s*([\d.,]+)\s*%/iu);
-        if(m){ const v=Number(m[1].replace(',','.')); return Number.isFinite(v)?v:null; }
+        if(m){ const v=Number(m[1].replace(',','.')); return Number.isFinite(v)?Math.round(v):null; }
     }
     return null;
 }
@@ -599,7 +599,7 @@ function extractRobClient(block){
     if(!block)return null;
     for(const line of block.split(/\r?\n/)){
         const m=line.match(/(?:Robustesse|ROBUSTESSE|ROB\b|Confiance|Conf\b)[^:]*:\s*(\d+(?:[.,]\d+)?)\s*(?:\/\s*100)?/iu);
-        if(m){ const v=Number(m[1].replace(',','.')); return Number.isFinite(v)?v:null; }
+        if(m){ const v=Number(m[1].replace(',','.')); return Number.isFinite(v)?Math.round(v):null; }
     }
     return null;
 }
@@ -952,9 +952,9 @@ function saveEdit(secKey,idx){
         const oddsVal=document.getElementById(`edit-odds-${secKey}-${idx}`).value;
         if(oddsVal) target.odds=Number(oddsVal);
         const probaVal=document.getElementById(`edit-proba-${secKey}-${idx}`).value;
-        if(probaVal) target.probability_pct=Number(probaVal);
+        if(probaVal) target.probability_pct=Math.round(Number(probaVal));
         const robVal=document.getElementById(`edit-rob-${secKey}-${idx}`).value;
-        if(robVal) target.robustness_pct=Number(robVal);
+        if(robVal) target.robustness_pct=Math.round(Number(robVal));
         const starsContainer=document.getElementById(`edit-stars-${secKey}-${idx}`);
         target.confidence_stars=Number(starsContainer.dataset.value||target.confidence_stars||0);
     }
@@ -1015,6 +1015,16 @@ function regenerateFiche(){
 async function publierFiche(){
     if(!currentParsed||!currentCat)return;
     const adminKey=getAdminKey();
+    if(!adminKey){showToast('Saisissez la clé admin.','error');return;}
+    // Nettoyage : arrondir les pourcentages décimaux pour PostgreSQL INTEGER
+    const clean=JSON.parse(JSON.stringify(currentParsed));
+    ['pari_du_jour','value_bet_premium','value_bet_speculatif','ticket_combine'].forEach(k=>{
+        if(clean[k]){if(clean[k].probability_pct!=null)clean[k].probability_pct=Math.round(clean[k].probability_pct);if(clean[k].robustness_pct!=null)clean[k].robustness_pct=Math.round(clean[k].robustness_pct);}
+    });
+    ['top_5_premium','top_3_opportunites','paris_a_bannir'].forEach(k=>{
+        if(Array.isArray(clean[k]))clean[k].forEach(b=>{if(b.probability_pct!=null)b.probability_pct=Math.round(b.probability_pct);if(b.robustness_pct!=null)b.robustness_pct=Math.round(b.robustness_pct);});
+    });
+    currentParsed=clean;
     const cleanText=regenerateFiche();
     if(!cleanText){showToast('Aucune donnée à publier.','error');return;}
 
@@ -1042,4 +1052,4 @@ async function publierFiche(){
 }
 </script>
 </body>
-                                           </html>
+  </html>
