@@ -1,5 +1,5 @@
 // ============================================
-// MODULE 3 : database.js — MIKE EDGE V11.17
+// MODULE 3 : database.js — MIKE EDGE V11.17.1
 // ============================================
 const { Pool } = require('pg');
 const { validateParsedImport } = require('./validator');
@@ -133,7 +133,8 @@ async function insertBetRow(client, matchId, bet) {
     );
 }
 
-async function savePublicationTransaction(parsedData, targetPublicationId = null, userId = null) {
+// 🔧 V11.17.1 FIX : Ajout categoryOverride pour forcer la catégorie depuis le dashboard
+async function savePublicationTransaction(parsedData, targetPublicationId = null, userId = null, categoryOverride = null) {
     let client;
     const startTime = Date.now();
     const validation = validateParsedImport(parsedData);
@@ -173,10 +174,15 @@ async function savePublicationTransaction(parsedData, targetPublicationId = null
         }
 
         const matchId = matchResult.rows[0].id;
+        
+        // 🔧 V11.17.1 FIX : Utilise categoryOverride si fourni par le dashboard
+        const categoryName = categoryOverride || parsedData.match_info?.category_name || 'CHAMPIONNAT';
+        console.log('[DB] Category insert:', categoryName, '| match_id:', matchId, '| override:', categoryOverride || 'none');
+
         await client.query(
             `INSERT INTO match_category_rankings (match_id, publication_id, category_name, rank_in_category)
              VALUES ($1, $2, $3, $4)`,
-            [matchId, publicationId, parsedData.match_info.category_name, parsedData.match_info.rank_in_category]
+            [matchId, publicationId, categoryName, parsedData.match_info.rank_in_category]
         );
 
         const bets = [parsedData.pari_du_jour, ...parsedData.top_5_premium, ...parsedData.top_3_opportunites, parsedData.value_bet_premium, parsedData.value_bet_speculatif, parsedData.ticket_combine, ...parsedData.paris_a_bannir].filter(Boolean);
@@ -196,7 +202,6 @@ async function savePublicationTransaction(parsedData, targetPublicationId = null
         return { success: true, publication_id: publicationId, match_id: matchId, warnings: validation.warnings };
 
     } catch (error) {
-        // 🔴 V11.16 FIX : Log systématique de toute erreur non métier
         console.error('[DATABASE] 🔴 ERREUR TRANSACTION :', error.message);
         console.error('[DATABASE] Code SQL :', error.code);
         console.error('[DATABASE] Stack :', error.stack);
