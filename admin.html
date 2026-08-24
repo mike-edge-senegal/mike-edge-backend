@@ -39,6 +39,83 @@ th{background-color:rgba(212,175,55,0.1);color:var(--gold)}
 #toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);padding:12px 20px;border-radius:12px;font-size:13px;font-weight:700;z-index:10000;display:none;max-width:90%;text-align:center}
 .toast-success{background:rgba(80,200,120,0.2);color:var(--emerald-success);border:1px solid var(--emerald-success)}
 .toast-error{background:rgba(224,17,95,0.2);color:var(--alert-red);border:1px solid var(--alert-red)}
+
+<style>
+/* ---------- DASHBOARD ---------- */
+.pronos-dash{ display:grid; grid-template-columns:1fr; gap:12px; margin-bottom:16px }
+.cat-card{ background:var(--bg-card); border:1px solid var(--border-gold); border-radius:16px; padding:16px; position:relative; overflow:hidden; cursor:pointer; transition:transform 0.15s }
+.cat-card:active{ transform:scale(0.98) }
+.cat-card-header{ display:flex; justify-content:space-between; align-items:center; margin-bottom:10px }
+.cat-title{ font-size:16px; font-weight:800; color:var(--gold); letter-spacing:0.5px }
+.cat-badge{ font-size:11px; font-weight:800; padding:4px 10px; border-radius:10px; border:1px solid }
+.cat-badge.ok{ background:rgba(80,200,120,0.15); color:var(--emerald-success); border-color:var(--emerald-success) }
+.cat-badge.warn{ background:rgba(255,140,0,0.15); color:#FF8C00; border-color:#FF8C00 }
+.cat-badge.full{ background:rgba(224,17,95,0.15); color:var(--alert-red); border-color:var(--alert-red) }
+.cat-bar-bg{ width:100%; height:8px; background:rgba(255,255,255,0.08); border-radius:4px; overflow:hidden; margin-bottom:8px }
+.cat-bar-fill{ height:100%; border-radius:4px; transition:width 0.4s }
+.cat-sub{ font-size:11px; color:var(--text-muted); font-weight:600 }
+.cat-irg-list{ margin-top:10px; display:flex; flex-direction:column; gap:6px }
+.cat-irg-item{ display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,0.35); padding:8px 12px; border-radius:10px; border:1px solid rgba(255,255,255,0.06) }
+.cat-irg-teams{ font-size:12px; color:var(--text-primary); font-weight:700; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-right:8px }
+.cat-irg-score{ font-size:11px; font-weight:800; color:var(--gold-bright); min-width:50px; text-align:right }
+
+/* ---------- SAISIE ---------- */
+.pronos-view{ display:none }
+.pronos-view.active{ display:block }
+.saisie-header{ display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; padding-bottom:10px; border-bottom:1px solid var(--border-gold) }
+.saisie-back{ background:none; border:none; color:var(--gold); font-size:14px; font-weight:700; padding:8px 0; cursor:pointer }
+.saisie-title{ font-size:15px; font-weight:800; color:var(--gold-bright); letter-spacing:1px }
+.saisie-counter{ font-size:13px; font-weight:800; color:var(--text-muted) }
+#ficheInput{ min-height:240px; font-family:monospace; font-size:12px; line-height:1.6 }
+.btn-analyser{ background:linear-gradient(135deg,var(--gold),var(--gold-bright)); color:#000; font-weight:900; font-size:15px; letter-spacing:0.5px; padding:16px; border-radius:14px; border:none; width:100%; margin-top:10px; cursor:pointer }
+.btn-analyser:disabled{ opacity:0.5; cursor:not-allowed }
+
+/* ---------- PREVIEW CARDS ---------- */
+.preview-container{ margin-top:16px; display:flex; flex-direction:column; gap:12px }
+.preview-section{ background:rgba(0,0,0,0.45); border:1px solid var(--border-gold); border-radius:14px; overflow:hidden }
+.preview-section-header{ background:rgba(212,175,55,0.1); padding:10px 14px; font-size:12px; font-weight:800; color:var(--gold); letter-spacing:0.5px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border-gold) }
+.preview-section-count{ font-size:11px; color:var(--text-muted); font-weight:700 }
+.preview-match-card{ padding:12px 14px; border-bottom:1px solid rgba(255,255,255,0.05); position:relative }
+.preview-match-card:last-child{ border-bottom:none }
+.preview-match-card.error{ border-left:3px solid var(--alert-red) }
+.preview-match-card.warn{ border-left:3px solid #FF8C00 }
+.preview-match-card.ok{ border-left:3px solid var(--emerald-success) }
+.preview-rank{ font-size:14px; font-weight:900; color:var(--gold-bright); margin-bottom:4px }
+.preview-market{ font-size:13px; color:var(--text-primary); font-weight:700; margin-bottom:6px; line-height:1.4 }
+.preview-metrics{ display:flex; gap:12px; flex-wrap:wrap }
+.preview-metric{ font-size:11px; color:var(--text-muted); font-weight:600 }
+.preview-metric b{ color:var(--gold-bright) }
+.preview-actions{ display:flex; gap:8px; margin-top:8px }
+.preview-actions button{ background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); color:var(--text-primary); border-radius:8px; padding:6px 12px; font-size:11px; font-weight:700; cursor:pointer }
+
+/* ---------- EDITION INLINE ---------- */
+.edit-form{ background:rgba(13,17,23,0.95); padding:12px; border-top:1px solid var(--border-gold); display:none }
+.edit-form.active{ display:block }
+.edit-form input, .edit-form select{ margin-bottom:8px; padding:10px; font-size:13px; background:var(--bg-elevated); border:1px solid var(--border-gold); border-radius:10px; color:var(--text-primary); width:100% }
+.edit-stars{ display:flex; gap:6px; margin:8px 0 }
+.edit-star{ font-size:22px; background:none; border:none; opacity:0.3; cursor:pointer; color:var(--gold-bright) }
+.edit-star.on{ opacity:1 }
+.edit-actions{ display:flex; gap:10px; margin-top:10px }
+.edit-actions .btn{ margin:0; padding:10px; font-size:12px }
+
+/* ---------- MATCH INFO ---------- */
+.match-info-card{ background:var(--bg-elevated); border:1px solid var(--border-gold); border-radius:14px; padding:14px; margin-bottom:12px }
+.match-info-row{ display:flex; justify-content:space-between; margin-bottom:6px; font-size:12px }
+.match-info-label{ color:var(--text-muted); font-weight:700 }
+.match-info-value{ color:var(--text-primary); font-weight:800 }
+
+/* ---------- BOUTON PUBLIER ---------- */
+.btn-publish{ background:var(--emerald-success); color:#000; font-weight:900; font-size:16px; letter-spacing:0.5px; padding:18px; border-radius:14px; border:none; width:100%; margin-top:14px; display:none; cursor:pointer }
+.btn-publish.active{ display:block }
+.btn-publish:disabled{ opacity:0.4; background:#555; cursor:not-allowed }
+
+/* ---------- ALERTES ---------- */
+.pronos-alert{ padding:10px 14px; border-radius:10px; font-size:12px; font-weight:700; margin:10px 0; display:none }
+.pronos-alert.show{ display:block }
+.pronos-alert.warn{ background:rgba(255,140,0,0.15); color:#FF8C00; border:1px solid #FF8C00 }
+.pronos-alert.err{ background:rgba(224,17,95,0.15); color:var(--alert-red); border:1px solid var(--alert-red) }
+.pronos-alert.info{ background:rgba(80,200,120,0.1); color:var(--emerald-success); border:1px solid var(--emerald-success) }
+</style>
 </style>
 </head>
 <body>
@@ -61,32 +138,35 @@ th{background-color:rgba(212,175,55,0.1);color:var(--gold)}
 <div id="authStatus" style="font-size:11px;margin-top:8px;font-weight:bold;text-align:center;"></div>
 </div>
 
-<div class="card">
-<div class="card-title"><span>1. SAISIE DES PRONOSTICS</span></div>
-<label class="label">Secteur / Catégorie :</label>
-<select id="categorySelect">
-<option value="ELITE_MONDIALE">🏆 Élite Mondiale / LDC</option>
-<option value="FRANCE">🇫🇷 France (Ligue 1)</option>
-<option value="ESPAGNE">🇪🇸 Espagne (La Liga)</option>
-<option value="ANGLETERRE">🏴󠁧󠁢󠁥󠁮󠁧󠁿 Angleterre (Premier League)</option>
-<option value="EUROPE">🇪🇺 Autres Championnats Europe</option>
-<option value="MONDE">🌎 Reste du Monde</option>
-</select>
-<label class="label">Fiche Telegram Brute :</label>
-<textarea id="rawTextInput" placeholder="Coller la fiche ici..."></textarea>
-<button class="btn btn-gold" id="verifySheetBtn" onclick="verifySheet()">🔍 VÉRIFIER LA FICHE</button>
-<div id="previewBox" style="display:none;background:rgba(0,0,0,0.5);border-radius:10px;padding:12px;margin-top:10px;border:1px solid rgba(255,255,255,0.1);">
-<div id="previewDetails" style="font-size:12px;line-height:1.5;"></div>
-<button class="btn btn-emerald" id="publishSheetBtn" style="display:none;margin-top:12px;" onclick="publishSector()">🚀 PUBLIER LE SECTEUR</button>
+
+<!-- ═══ DASHBOARD ═══ -->
+<div id="pronosDashboard" class="pronos-view active">
+  <div class="card-title"><span>📊 DASHBOARD PRONOSTICS</span><span id="pronosGlobalStatus" style="font-size:11px;color:var(--text-muted)">⏳ Sync...</span></div>
+  <div id="categoriesGrid" class="pronos-dash"></div>
 </div>
+
+<!-- ═══ SAISIE ═══ -->
+<div id="pronosSaisie" class="pronos-view">
+  <div class="saisie-header">
+    <button class="saisie-back" onclick="showPronosDashboard()">← Retour</button>
+    <span class="saisie-title" id="saisieCatTitle">FRANCE</span>
+    <span class="saisie-counter" id="saisieCatCounter">0/5</span>
+  </div>
+  <div id="catMismatchAlert" class="pronos-alert warn"></div>
+  <label class="label">📋 Fiche standard (copier-coller) :</label>
+  <textarea id="ficheInput" placeholder="=== DEBUT FICHE MATCH ===&#10;MATCH : ...&#10;...&#10;=== FIN FICHE ==="></textarea>
+  <button class="btn-analyser" id="btnAnalyser" onclick="analyserFiche()">🔍 ANALYSER LA FICHE</button>
+  <div id="fichePreview" class="preview-container" style="display:none"></div>
+  <button class="btn-publish" id="btnPublier" onclick="publierFiche()">🚀 PUBLIER DANS <span id="publishCatName">FRANCE</span></button>
 </div>
+
 
 <div class="card">
 <div class="card-title"><span>2. KIOSQUE MAGAZINE HD</span></div>
 <label class="label">Titre :</label><input type="text" id="magTitle" placeholder="Ex: Édition Spéciale">
 <label class="label">Date :</label><input type="date" id="magDate">
 <label class="label">Couverture :</label><input type="file" id="magCover" accept="image/*" style="padding:8px;color:var(--text-muted);">
-<label class="label">Pages HD :</label><input type="file" id="magPages" accept="image/*" multiple style="padding:8px;color:var(--text-muted);" onchange="handlePagesSelect(this)">
+<label class="label">Pages HD (9:16) :</label><input type="file" id="magPages" accept="image/*" multiple style="padding:8px;color:var(--text-muted);" onchange="handlePagesSelect(this)">
 <div id="pageQueueContainer" style="display:none;margin-bottom:12px;">
 <span class="label" id="pageQueueCount">0 page(s)</span>
 <div id="pageQueueGrid" class="page-queue-grid"></div>
@@ -138,6 +218,57 @@ function showToast(msg, type){var t=document.getElementById('toast');t.textConte
 function validateImageFile(f){if(!f)return"Aucun fichier.";if(!f.type.startsWith('image/'))return"Ce n'est pas une image.";if(f.size>MAX_FILE_SIZE)return"Fichier trop lourd (max 10Mo).";return null}
 
 // ============================================
+// 🗜️ COMPRESSION AUTO HD (V11.16+)
+// Redimensionne à max 1080px de large, qualité JPEG 80%
+// ============================================
+async function compressImage(file, options) {
+    options = options || {};
+    var maxWidth = options.maxWidth || 1080;
+    var quality = options.quality || 0.8;
+    
+    return new Promise(function(resolve, reject) {
+        var img = new Image();
+        var url = URL.createObjectURL(file);
+        
+        img.onload = function() {
+            URL.revokeObjectURL(url);
+            var w = img.width;
+            var h = img.height;
+            
+            // Redimensionnement proportionnel
+            if (w > maxWidth) {
+                h = Math.round(h * maxWidth / w);
+                w = maxWidth;
+            }
+            
+            var canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+            var ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, w, h);
+            ctx.drawImage(img, 0, 0, w, h);
+            
+            canvas.toBlob(function(blob) {
+                var compressed = new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), {
+                    type: 'image/jpeg',
+                    lastModified: Date.now()
+                });
+                console.log('[COMPRESS] ' + file.name + ': ' + (file.size/1024).toFixed(0) + 'Ko → ' + (compressed.size/1024).toFixed(0) + 'Ko (' + Math.round(100*compressed.size/file.size) + '%)');
+                resolve(compressed);
+            }, 'image/jpeg', quality);
+        };
+        
+        img.onerror = function() {
+            URL.revokeObjectURL(url);
+            reject(new Error('Erreur chargement image'));
+        };
+        
+        img.src = url;
+    });
+}
+
+// ============================================
 // 🔬 DIAGNOSTIC 3 ÉTAPES (V11.16)
 // ============================================
 window.addEventListener('DOMContentLoaded', async function(){
@@ -145,7 +276,6 @@ window.addEventListener('DOMContentLoaded', async function(){
     banner.className = 'conn-checking';
     banner.textContent = '⏳ ÉTAPE 1/3 : Serveur Render...';
 
-    // ÉTAPE 1 : /health (serveur uniquement)
     try {
         var res = await fetch(window.location.origin + '/health');
         var data = await res.json();
@@ -157,7 +287,6 @@ window.addEventListener('DOMContentLoaded', async function(){
         return;
     }
 
-    // ÉTAPE 2 : /health/db (PostgreSQL)
     try {
         var res2 = await fetch(window.location.origin + '/health/db');
         var data2 = await res2.json();
@@ -169,7 +298,6 @@ window.addEventListener('DOMContentLoaded', async function(){
         return;
     }
 
-    // ÉTAPE 3 : /api/v1/magazines
     try {
         var res3 = await fetch(API_BASE + '/magazines');
         var data3 = await res3.json();
@@ -222,10 +350,28 @@ async function publishSector(){
     }catch(e){showToast("Réseau: "+e.name+": "+e.message)}finally{setLoading(false)}
 }
 
-function handlePagesSelect(input){
+// ============================================
+// KIOSQUE MAGAZINE — AVEC COMPRESSION AUTO
+// ============================================
+async function handlePagesSelect(input){
     var files=Array.from(input.files);if(!files.length)return;
+    
+    // Validation rapide
     for(var i=0;i<files.length;i++){var e=validateImageFile(files[i]);if(e){showToast(e);input.value='';return}}
-    files.forEach(function(f){selectedPages.push(f)});renderPageQueue();input.value='';
+    
+    setLoading(true,'COMPRESSION ' + files.length + ' PAGE(S)...');
+    
+    for(var i=0;i<files.length;i++){
+        try{
+            var compressed=await compressImage(files[i],{maxWidth:1080,quality:0.8});
+            selectedPages.push(compressed);
+        }catch(err){
+            console.warn('[COMPRESS] Échec page '+(i+1)+', fallback original');
+            selectedPages.push(files[i]);
+        }
+    }
+    
+    renderPageQueue();input.value='';setLoading(false);
 }
 
 function renderPageQueue(){
@@ -247,15 +393,44 @@ async function saveMagazine(){
     try{adminKey=getAdminKey()}catch(e){showToast(e.message);return}
     if(!title||!date){showToast("Titre et date requis.");return}
     if(!selectedPages.length){showToast("Ajoutez des pages.");return}
+    
+    // Validation cover
     if(cover){var e=validateImageFile(cover);if(e){showToast(e);return}}
-    setLoading(true,'UPLOAD...');
+    
+    setLoading(true,'COMPRESSION & UPLOAD...');
+    
     try{
         var coverUrl='';
-        if(cover){var fn='covers/'+Date.now()+'_'+cover.name;await supabaseClient.storage.from('magazines').upload(fn,cover);var d=supabaseClient.storage.from('magazines').getPublicUrl(fn);coverUrl=d.data.publicUrl}
+        
+        // Compression auto de la couverture
+        if(cover){
+            try{
+                var compressedCover=await compressImage(cover,{maxWidth:1080,quality:0.8});
+                cover=compressedCover;
+            }catch(err){console.warn('[COMPRESS] Cover fallback original');}
+            var fn='covers/'+Date.now()+'_'+cover.name;
+            await supabaseClient.storage.from('magazines').upload(fn,cover);
+            var d=supabaseClient.storage.from('magazines').getPublicUrl(fn);
+            coverUrl=d.data.publicUrl;
+        }
+        
         var mag=await supabaseClient.from('magazines').insert([{title:title,edition_date:date,cover_url:coverUrl,is_active:true}]).select('id').single();
         if(mag.error||!mag.data)throw new Error(mag.error?.message||"Échec");
-        for(var i=0;i<selectedPages.length;i++){var f=selectedPages[i];var pn='pages/'+mag.data.id+'/'+Date.now()+'_p'+(i+1)+'_'+f.name;await supabaseClient.storage.from('magazines').upload(pn,f);var pd=supabaseClient.storage.from('magazines').getPublicUrl(pn);await supabaseClient.from('magazine_pages').insert([{magazine_id:mag.data.id,page_number:i+1,image_url:pd.data.publicUrl}])}
-        showToast("💾 Album enregistré !",'success');selectedPages=[];renderPageQueue();document.getElementById('magTitle').value='';document.getElementById('magDate').value='';document.getElementById('magCover').value='';
+        
+        // Pages déjà compressées dans handlePagesSelect
+        for(var i=0;i<selectedPages.length;i++){
+            var f=selectedPages[i];
+            var pn='pages/'+mag.data.id+'/'+Date.now()+'_p'+(i+1)+'_'+f.name;
+            await supabaseClient.storage.from('magazines').upload(pn,f);
+            var pd=supabaseClient.storage.from('magazines').getPublicUrl(pn);
+            await supabaseClient.from('magazine_pages').insert([{magazine_id:mag.data.id,page_number:i+1,image_url:pd.data.publicUrl}]);
+        }
+        
+        showToast("💾 Album enregistré !",'success');
+        selectedPages=[];renderPageQueue();
+        document.getElementById('magTitle').value='';
+        document.getElementById('magDate').value='';
+        document.getElementById('magCover').value='';
     }catch(e){showToast("Erreur: "+e.message)}finally{setLoading(false)}
 }
 
@@ -272,26 +447,52 @@ async function toggleFlashStatus(){
     }catch(e){showToast("Erreur: "+e.message)}finally{setLoading(false)}
 }
 
+// ============================================
+// INFO FLASH — AVEC COMPRESSION AUTO
+// ============================================
 async function uploadFlashInfo(){
     var file=document.getElementById('flashImageInput').files[0],adminKey;
     try{adminKey=getAdminKey()}catch(e){showToast(e.message);return}
     var e=validateImageFile(file);if(e){showToast(e);return}
-    setLoading(true,'PUBLICATION FLASH...');
+    
+    setLoading(true,'COMPRESSION & PUBLICATION...');
+    
     try{
+        // Compression auto
+        try{
+            var compressed=await compressImage(file,{maxWidth:1080,quality:0.8});
+            file=compressed;
+        }catch(err){console.warn('[COMPRESS] Flash fallback original');}
+        
         await supabaseClient.from('flash_infos').update({is_active:false}).eq('is_active',true);
-        var fn='flash/'+Date.now()+'_'+file.name;await supabaseClient.storage.from('magazines').upload(fn,file);var d=supabaseClient.storage.from('magazines').getPublicUrl(fn);
+        var fn='flash/'+Date.now()+'_'+file.name;
+        await supabaseClient.storage.from('magazines').upload(fn,file);
+        var d=supabaseClient.storage.from('magazines').getPublicUrl(fn);
         await supabaseClient.from('flash_infos').insert([{title:"Info Flash",message:"Flash direct",image_url:d.data.publicUrl,is_active:true}]);
         showToast("⚡ Flash publié !",'success');document.getElementById('flashImageInput').value='';
     }catch(e){showToast("Erreur: "+e.message)}finally{setLoading(false)}
 }
 
+// ============================================
+// TICKET SESSION — AVEC COMPRESSION AUTO
+// ============================================
 async function uploadSessionTicket(){
     var file=document.getElementById('sessionTicketInput').files[0],adminKey;
     try{adminKey=getAdminKey()}catch(e){showToast(e.message);return}
     var e=validateImageFile(file);if(e){showToast(e);return}
-    setLoading(true,"TÉLÉVERSEMENT...");
+    
+    setLoading(true,'COMPRESSION & TÉLÉVERSEMENT...');
+    
     try{
-        var fn='session_tickets/'+Date.now()+'_'+file.name;await supabaseClient.storage.from('tickets').upload(fn,file);var d=await supabaseClient.storage.from('tickets').getPublicUrl(fn);
+        // Compression auto
+        try{
+            var compressed=await compressImage(file,{maxWidth:1080,quality:0.8});
+            file=compressed;
+        }catch(err){console.warn('[COMPRESS] Ticket fallback original');}
+        
+        var fn='session_tickets/'+Date.now()+'_'+file.name;
+        await supabaseClient.storage.from('tickets').upload(fn,file);
+        var d=await supabaseClient.storage.from('tickets').getPublicUrl(fn);
         await supabaseClient.from('system_configs').upsert([{key:'session_ticket_url',value:d.data.publicUrl}],{onConflict:'key'});
         showToast("🎉 Ticket publié !",'success');document.getElementById('sessionTicketInput').value='';
     }catch(e){showToast("Erreur: "+e.message)}finally{setLoading(false)}
@@ -308,6 +509,492 @@ async function loadVrpPerformance(){
         else{j.data.forEach(function(v){var row=document.createElement('tr');var c=document.createElement('td');c.style.color='var(--gold-bright)';c.textContent=v.vrp_code;var z=document.createElement('td');z.textContent=v.zone;var s=document.createElement('td');s.textContent=v.active_subscribers;var t=document.createElement('td');t.textContent='+'+v.earned_days+' jours';row.appendChild(c);row.appendChild(z);row.appendChild(s);row.appendChild(t);tb.appendChild(row)})}
         document.getElementById('vrpTableContainer').style.display='block';showToast("Stats actualisées",'success');
     }catch(e){showToast("Erreur: "+e.name+": "+e.message)}finally{setLoading(false)}
+}
+
+// ╔══════════════════════════════════════════════════════════════════════╗
+// ║  PARSER V11.14 — PORTAGE CLIENT VANILLA JS                          ║
+// ╚══════════════════════════════════════════════════════════════════════╝
+const PARSER_VERSION_CLIENT = 'V11.14 CLIENT';
+
+const DICTIONARY_CLIENT = {
+    PDJ: ['[PARI_DU_JOUR]','🎯 PARI DU JOUR','PARI DU JOUR','PDJ','LE PARI DU JOUR'],
+    TOP5: ['[TOP_5_PREMIUM]','[TOP_5]','🏆 TOP 5 PREMIUM','TOP 5 PREMIUM','TOP 5','TOP CINQ'],
+    OPP: ['[OPPORTUNITES]','[TOP_3_OPPORTUNITES]','💡 TOP 3 OPPORTUNITÉS','TOP 3 OPPORTUNITÉS','OPPORTUNITÉS'],
+    VALUE_PREMIUM: ['[VALUE_BET_PREMIUM]','[VALUE_PREMIUM]','💎 PARI VALUE PREMIUM','VALUE BET PREMIUM','VALUE PREMIUM'],
+    VALUE_SPECULATIF: ['[VALUE_BET_SPECULATIF]','[VALUE_SPECULATIF]','🎰 VALUE BET SPÉCULATIF','VALUE BET SPÉCULATIF'],
+    COMBINE: ['[TICKET_COMBINE]','[TICKET_COMBINE_PREMIUM]','🎟️ TICKET COMBINÉ PREMIUM','TICKET COMBINÉ'],
+    BANNED: ['[PARIS_A_BANNIR]','[PARIS_A_EVITER]','🚫 MODULE 3 — PARIS À BANNIR','PARIS À BANNIR','BANNED'],
+    MARKET_LABELS: ['MARCHE','MARCHÉ','PARI','SÉLECTION','SELECTION']
+};
+
+const SECTION_HEADERS_CLIENT = [
+    ...DICTIONARY_CLIENT.PDJ, ...DICTIONARY_CLIENT.TOP5, ...DICTIONARY_CLIENT.OPP,
+    ...DICTIONARY_CLIENT.VALUE_PREMIUM, ...DICTIONARY_CLIENT.VALUE_SPECULATIF,
+    ...DICTIONARY_CLIENT.COMBINE, ...DICTIONARY_CLIENT.BANNED,
+    '[META_MATCH]','=== DEBUT FICHE MATCH ===','🎯 AUDIT','FIN FICHE','=== FIN FICHE ==='
+];
+
+function normalizeHeaderClient(v){ return String(v||'').normalize('NFKC').replace(/[\uFE0F\u200D]/gu,'').replace(/\p{Extended_Pictographic}/gu,'').replace(/\s+/g,' ').trim().toLowerCase(); }
+function escapeRegExpClient(v){ return String(v).replace(/[.*+?^${}()|[\]\\]/g,'\\$&'); }
+function headerMatchesClient(line,tag){ return new RegExp('^'+escapeRegExpClient(normalizeHeaderClient(tag))+'(?:\s*[:—\-⭐★✅✔].*)?$','iu').test(line); }
+function getNextAliasesClient(currentAliases){
+    const cur=new Set(currentAliases.map(normalizeHeaderClient));
+    return SECTION_HEADERS_CLIENT.filter(a=>!cur.has(normalizeHeaderClient(a)));
+}
+function getSectionClient(text,aliases,nextAliases){
+    if(typeof text!=='string')return null;
+    const lines=text.split(/\r?\n/);
+    let start=-1;
+    for(let i=0;i<lines.length;i++){ if(aliases.some(a=>headerMatchesClient(normalizeHeaderClient(lines[i]),normalizeHeaderClient(a)))){start=i;break;} }
+    if(start===-1)return null;
+    let end=lines.length;
+    for(let i=start+1;i<lines.length;i++){ if(nextAliases.some(a=>headerMatchesClient(normalizeHeaderClient(lines[i]),normalizeHeaderClient(a)))){end=i;break;} }
+    return lines.slice(start+1,end).join('\n');
+}
+function extractTeamsClient(raw){
+    const lines=raw.split(/\r?\n/);
+    for(const line of lines){
+        if(/^\s*(?:MATCH|EQUIPES?)\s*:/iu.test(line)){
+            const c=line.replace(/^\s*(?:MATCH|EQUIPES?)\s*:\s*/iu,'').trim();
+            const m=c.match(/^(.+?)\s+(?:vs\.?|contre|[-—–\/]|v)\s+(.+)$/iu);
+            if(m)return{home_team:m[1].trim(),away_team:m[2].trim()};
+        }
+    }
+    for(const line of lines){
+        if(/^\s*(?:CAT|RANG|DATE|HEURE|LIGUE|COMPETITION|IRG|AUDIT|P\d|BAN\d|\[|===|🏟️)/iu.test(line))continue;
+        const m=line.trim().match(/^(.+?)\s+(?:vs\.?|contre|[-—–\/]|v)\s+(.+)$/iu);
+        if(m)return{home_team:m[1].trim(),away_team:m[2].trim()};
+    }
+    return{home_team:null,away_team:null};
+}
+function extractLineClient(block,kw){
+    if(!block)return null;
+    const nk=normalizeHeaderClient(kw);
+    const line=block.split(/\r?\n/).find(l=>normalizeHeaderClient(l).includes(nk));
+    return line?line.trim():null;
+}
+function extractOddsClient(block,tag){
+    if(!block)return null;
+    if(tag){ const cm=block.match(new RegExp('\\b'+escapeRegExpClient(tag)+'\s*:\s*([\d]+(?:[.,]\d+)?)','iu')); if(cm)return Number(cm[1].replace(',','.')); }
+    const pm=block.match(/\b(?:COTE_TOTALE|COTE TOTALE)\s*:\s*([\d]+(?:[.,]\d+)?)/iu);
+    if(pm)return Number(pm[1].replace(',','.'));
+    const m=block.match(/\b(?:COTE)\s*:\s*([\d]+(?:[.,]\d+)?)/iu);
+    return m?Number(m[1].replace(',','.')):null;
+}
+function extractPctClient(block){
+    if(!block)return null;
+    for(const line of block.split(/\r?\n/)){
+        const m=line.match(/(?:Probabilité|PROBABILITE|Proba)[^:]*:\s*([\d.,]+)\s*%/iu);
+        if(m){ const v=Number(m[1].replace(',','.')); return Number.isFinite(v)?v:null; }
+    }
+    return null;
+}
+function extractRobClient(block){
+    if(!block)return null;
+    for(const line of block.split(/\r?\n/)){
+        const m=line.match(/(?:Robustesse|ROBUSTESSE|ROB\b|Confiance|Conf\b)[^:]*:\s*(\d+(?:[.,]\d+)?)\s*(?:\/\s*100)?/iu);
+        if(m){ const v=Number(m[1].replace(',','.')); return Number.isFinite(v)?v:null; }
+    }
+    return null;
+}
+function extractConfClient(block){
+    if(!block)return null;
+    const em=block.match(/(?:Étoiles|ETOILES|STARS)\s*:\s*([1-5])/iu);
+    if(em)return Number(em[1]);
+    const nm=block.match(/(?:CONFIANCE|CONF|Note de Confiance)\s*[:\-]?\s*(\d{1,3})\s*(?:\/\s*100)?/iu);
+    if(nm){
+        const n=Number(nm[1]);
+        if(n>=80)return 5; if(n>=60)return 4; if(n>=40)return 3; if(n>=20)return 2; return 1;
+    }
+    return null;
+}
+function extractMarketClient(block,labels){
+    if(!block)return null;
+    for(const line of block.split(/\r?\n/)){
+        for(const label of labels){
+            const m=line.match(new RegExp('(?:^|\||\s)'+escapeRegExpClient(label)+'\s*(?::|—|-)?\s*([^|\n]+?)(?=\s*(?:COTE|Cote|PROBA|PROBABILITE|ROBUSTESSE|ROB|ETOILES|STARS|\||$))','iu'));
+            if(m&&m[1].trim())return m[1].trim();
+        }
+    }
+    return null;
+}
+function extractExplicitRankClient(block){
+    if(!block)return 0;
+    if(/^\s*(?:🥇|①)/.test(block))return 1;
+    if(/^\s*(?:🥈|②)/.test(block))return 2;
+    if(/^\s*(?:🥉|③)/.test(block))return 3;
+    if(/^\s*(?:4️⃣)/.test(block))return 4;
+    if(/^\s*(?:5️⃣)/.test(block))return 5;
+    const m=block.match(/(?:RANG|P|O)\s*(\d+)/i);
+    return m?Number(m[1]):0;
+}
+
+function parseTelegramTextClient(rawText){
+    const out={
+        raw_text_length:typeof rawText==='string'?rawText.length:0,
+        parser_version:PARSER_VERSION_CLIENT,
+        publication_title:null,
+        match_info:{home_team:null,away_team:null,date_str:null,time_str:null,league_name:null,irg_index:null,category_name:null,rank_in_category:null},
+        pari_du_jour:null, top_5_premium:[], top_3_opportunites:[],
+        value_bet_premium:null, value_bet_speculatif:null,
+        ticket_combine:null, paris_a_bannir:[]
+    };
+    if(typeof rawText!=='string'||!rawText.trim()||rawText.length>50000)return out;
+
+    const teams=extractTeamsClient(rawText);
+    out.match_info.home_team=teams.home_team;
+    out.match_info.away_team=teams.away_team;
+
+    const catM=rawText.match(/^\s*CAT(?:E|É)GORIE\s*:\s*([A-Z0-9_]+)\s*$/imu);
+    const dateM=rawText.match(/📅\s*([^|\n•]+)/iu)||rawText.match(/^\s*DATE\s*:\s*([^|\n•]+)\s*$/imu);
+    const timeM=rawText.match(/(?:HEURE\s*[:—\-]|•\s*HEURE\s*[:—\-]|HEURE\s*)\s*(\d{1,2}:\d{2})/iu)||rawText.match(/^\s*HEURE\s*:\s*(\d{1,2}:\d{2})/imu)||rawText.match(/(?:HEURE\s*:|\bHEURE\b)\s*(\d{1,2}:\d{2})/iu);
+    const leagueM=rawText.match(/(?:COMPÉTITION|COMPETITION|LIGUE)\s*:\s*([^|\n]+)/iu)||rawText.match(/^\s*COMPÉTITION\s*[-—]\s*([^\n]+)$/imu);
+    const irgM=rawText.match(/(?:SCORE\s+IRG|IRG)\s*:\s*(\d{1,3})\b/iu)||rawText.match(/\bIR\s*:\s*(\d{1,3})\b/iu);
+
+    out.match_info.category_name=catM?catM[1].toUpperCase().trim():'CHAMPIONNAT';
+    out.match_info.date_str=dateM?dateM[1].trim():null;
+    out.match_info.time_str=timeM?timeM[1].trim():null;
+    out.match_info.league_name=leagueM?leagueM[1].trim():'Ligue Internationale';
+    out.match_info.irg_index=irgM?Number(irgM[1]):80;
+
+    if(out.match_info.home_team&&out.match_info.away_team&&out.match_info.league_name){
+        out.publication_title=out.match_info.home_team+' vs '+out.match_info.away_team+' — '+out.match_info.league_name;
+    }
+
+    const meta=getSectionClient(rawText,['[META_MATCH]','=== DEBUT FICHE MATCH ==='],getNextAliasesClient(['[META_MATCH]','=== DEBUT FICHE MATCH ===']))||'';
+    const gProb=extractPctClient(meta), gRob=extractRobClient(meta), gStars=extractConfClient(meta);
+
+    const pdjS=getSectionClient(rawText,DICTIONARY_CLIENT.PDJ,getNextAliasesClient(DICTIONARY_CLIENT.PDJ));
+    if(pdjS){
+        out.pari_du_jour={section_type:'PARI_DU_JOUR',rank_in_section:1,
+            market_name:extractMarketClient(pdjS,DICTIONARY_CLIENT.MARKET_LABELS)||extractLineClient(pdjS,'MARCHE'),
+            odds:extractOddsClient(pdjS), probability_pct:extractPctClient(pdjS)??gProb,
+            robustness_pct:extractRobClient(pdjS)??gRob??out.match_info.irg_index,
+            confidence_stars:extractConfClient(pdjS)??gStars};
+    }
+
+    const top5S=getSectionClient(rawText,DICTIONARY_CLIENT.TOP5,getNextAliasesClient(DICTIONARY_CLIENT.TOP5));
+    if(top5S){
+        top5S.split(/(?=^\s*(?:🥇|🥈|🥉|4️⃣|5️⃣|P[1-5]\s*:|\d\.\s*(?:SÉCURITÉ|VALEUR|OPPORTUNITÉ)))/gim)
+        .filter(b=>/^\s*(?:🥇|🥈|🥉|4️⃣|5️⃣|P\d|P\d\s*:|\d\.)/im.test(b)).slice(0,5)
+        .forEach((block,idx)=>{
+            const r=extractExplicitRankClient(block)||(idx+1);
+            out.top_5_premium.push({section_type:'TOP_5',rank_in_section:r,
+                market_name:extractMarketClient(block,DICTIONARY_CLIENT.MARKET_LABELS)||extractLineClient(block,'P'+r),
+                odds:extractOddsClient(block), probability_pct:extractPctClient(block),
+                robustness_pct:extractRobClient(block), confidence_stars:extractConfClient(block)});
+        });
+    }
+
+    const oppS=getSectionClient(rawText,DICTIONARY_CLIENT.OPP,getNextAliasesClient(DICTIONARY_CLIENT.OPP));
+    if(oppS){
+        oppS.split(/(?=^\s*(?:①|②|③|O[1-3]\s*:|Opportunité\s*\d))/gim)
+        .filter(b=>/^\s*(?:①|②|③|O[1-3]|O[1-3]\s*:|Opportunité\s*\d)/im.test(b)).slice(0,3)
+        .forEach((block,idx)=>{
+            const r=extractExplicitRankClient(block)||(idx+1);
+            out.top_3_opportunites.push({section_type:'OPPORTUNITE',rank_in_section:r,
+                market_name:extractMarketClient(block,DICTIONARY_CLIENT.MARKET_LABELS)||extractLineClient(block,'O'+r),
+                odds:extractOddsClient(block), probability_pct:extractPctClient(block),
+                robustness_pct:extractRobClient(block), confidence_stars:extractConfClient(block)});
+        });
+    }
+
+    const valPS=getSectionClient(rawText,DICTIONARY_CLIENT.VALUE_PREMIUM,getNextAliasesClient(DICTIONARY_CLIENT.VALUE_PREMIUM));
+    if(valPS){ out.value_bet_premium={section_type:'VALUE_PREMIUM',rank_in_section:1,market_name:extractMarketClient(valPS,DICTIONARY_CLIENT.MARKET_LABELS)||extractLineClient(valPS,'MARCHE'),odds:extractOddsClient(valPS),probability_pct:extractPctClient(valPS),robustness_pct:extractRobClient(valPS),confidence_stars:extractConfClient(valPS)}; }
+
+    const valSS=getSectionClient(rawText,DICTIONARY_CLIENT.VALUE_SPECULATIF,getNextAliasesClient(DICTIONARY_CLIENT.VALUE_SPECULATIF));
+    if(valSS){ out.value_bet_speculatif={section_type:'VALUE_SPECULATIF',rank_in_section:1,market_name:extractMarketClient(valSS,DICTIONARY_CLIENT.MARKET_LABELS)||extractLineClient(valSS,'MARCHE'),odds:extractOddsClient(valSS),probability_pct:extractPctClient(valSS),robustness_pct:extractRobClient(valSS),confidence_stars:extractConfClient(valSS)}; }
+
+    const ticS=getSectionClient(rawText,DICTIONARY_CLIENT.COMBINE,getNextAliasesClient(DICTIONARY_CLIENT.COMBINE));
+    if(ticS){
+        const sel1=extractLineClient(ticS,'SEL1')||extractLineClient(ticS,'Sélection 1');
+        const sel2=extractLineClient(ticS,'SEL2')||extractLineClient(ticS,'Sélection 2');
+        out.ticket_combine={section_type:'COMBINE',rank_in_section:1,market_name:'Ticket Combiné Premium',
+            odds:extractOddsClient(ticS,'COTE_TOTALE')??extractOddsClient(ticS,'Cote'),
+            confidence_stars:extractConfClient(ticS),
+            comment:[sel1,sel2].filter(Boolean).join(' + ')||'Sélections d\'élite combinées'};
+    }
+
+    const banS=getSectionClient(rawText,DICTIONARY_CLIENT.BANNED,getNextAliasesClient(DICTIONARY_CLIENT.BANNED));
+    if(banS){
+        const seen=new Set();
+        for(const line of banS.split('\n')){
+            const bm=line.match(/^\s*BAN(\d+)\s*:\s*([^|\n]+?)(?:\s*\|\s*(?:RAISON\s*:)?\s*(.*))?$/i);
+            if(!bm)continue;
+            const r=Number(bm[1]); if(r<1||r>3||seen.has(r))continue; seen.add(r);
+            out.paris_a_bannir.push({section_type:'BANNED',rank_in_section:r,market_name:bm[2].trim(),reason:bm[3]?bm[3].trim():'Risque élevé'});
+        }
+    }
+    return out;
+}
+
+// ╔══════════════════════════════════════════════════════════════════════╗
+// ║  LOGIQUE UI — DASHBOARD · SAISIE · PREVIEW · ÉDITION · PUBLICATION  ║
+// ╚══════════════════════════════════════════════════════════════════════╝
+
+const CATEGORIES=[
+    {key:'ELITE_MONDIALE', label:'🏆 ÉLITE MONDIALE', quota:10, color:'#FFD700'},
+    {key:'FRANCE', label:'🇫🇷 FRANCE', quota:5, color:'#0055FF'},
+    {key:'ESPAGNE', label:'🇪🇸 ESPAGNE', quota:5, color:'#D4AF37'},
+    {key:'ANGLETERRE', label:'🏴󠁧󠁢󠁥󠁮󠁧󠁿 ANGLETERRE', quota:5, color:'#50C878'},
+    {key:'EUROPE', label:'🇪🇺 EUROPE', quota:5, color:'#B9F2FF'},
+    {key:'MONDE', label:'🌎 MONDE', quota:5, color:'#E0115F'}
+];
+
+let currentCat=null;
+let currentParsed=null;
+let existingMatches={};
+
+window.addEventListener('DOMContentLoaded', loadDashboard);
+
+async function loadDashboard(){
+    document.getElementById('pronosGlobalStatus').textContent='⏳ Sync...';
+    const promises=CATEGORIES.map(c=>fetch(API_BASE+'/matches/'+c.key,{headers:{'Accept':'application/json'}}).then(r=>r.ok?r.json():{success:false,data:[]}).catch(()=>({success:false,data:[]})));
+    const results=await Promise.all(promises);
+    results.forEach((res,i)=>{ existingMatches[CATEGORIES[i].key]=(res.success&&Array.isArray(res.data))?res.data:[]; });
+    renderDashboard();
+    document.getElementById('pronosGlobalStatus').textContent='✅ Sync';
+}
+
+function renderDashboard(){
+    const grid=document.getElementById('categoriesGrid');
+    grid.innerHTML='';
+    CATEGORIES.forEach(cat=>{
+        const matches=existingMatches[cat.key]||[];
+        const count=matches.length;
+        const pct=Math.min(100,(count/cat.quota)*100);
+        const isFull=count>=cat.quota;
+        const badgeClass=isFull?'full':(count>0?'ok':'warn');
+        const badgeText=isFull?'COMPLET':(count+'/'+cat.quota);
+        const sorted=[...matches].sort((a,b)=>{ const ia=Number(a.irg_index??a.irg??0), ib=Number(b.irg_index??b.irg??0); return ib-ia; }).slice(0,3);
+        let irgHtml='';
+        sorted.forEach(m=>{ const irg=m.irg_index??m.irg??'?'; irgHtml+=`<div class="cat-irg-item"><span class="cat-irg-teams">${m.home_team||'??'} vs ${m.away_team||'??'}</span><span class="cat-irg-score">IRG ${irg}</span></div>`; });
+        if(matches.length>3) irgHtml+=`<div class="cat-irg-item" style="opacity:0.6"><span class="cat-irg-teams">...et ${matches.length-3} autre(s)</span></div>`;
+        const card=document.createElement('div');
+        card.className='cat-card';
+        card.style.borderLeft=`3px solid ${cat.color}`;
+        card.innerHTML=`<div class="cat-card-header"><span class="cat-title">${cat.label}</span><span class="cat-badge ${badgeClass}">${badgeText}</span></div><div class="cat-bar-bg"><div class="cat-bar-fill" style="width:${pct}%;background:${cat.color}"></div></div><div class="cat-sub">${isFull?'Quota atteint — supprimez pour ajouter':(cat.quota-count)+' place(s) libre(s)'}</div><div class="cat-irg-list">${irgHtml}</div>`;
+        card.onclick=()=>openSaisie(cat);
+        grid.appendChild(card);
+    });
+}
+
+function openSaisie(cat){
+    if(!cat)return;
+    currentCat=cat;
+    document.getElementById('pronosDashboard').classList.remove('active');
+    document.getElementById('pronosSaisie').classList.add('active');
+    document.getElementById('saisieCatTitle').textContent=cat.label;
+    document.getElementById('publishCatName').textContent=cat.label;
+    const count=(existingMatches[cat.key]||[]).length;
+    document.getElementById('saisieCatCounter').textContent=count+'/'+cat.quota;
+    document.getElementById('ficheInput').value='';
+    document.getElementById('fichePreview').style.display='none';
+    document.getElementById('btnPublier').classList.remove('active');
+    document.getElementById('catMismatchAlert').classList.remove('show');
+    currentParsed=null;
+}
+
+function showPronosDashboard(){
+    document.getElementById('pronosSaisie').classList.remove('active');
+    document.getElementById('pronosDashboard').classList.add('active');
+    loadDashboard();
+}
+
+function analyserFiche(){
+    const raw=document.getElementById('ficheInput').value.trim();
+    if(!raw){showToast('Collez une fiche.','error');return;}
+    const parsed=parseTelegramTextClient(raw);
+    currentParsed=parsed;
+    const detectedCat=parsed.match_info.category_name;
+    const alertBox=document.getElementById('catMismatchAlert');
+    if(detectedCat && detectedCat!=='CHAMPIONNAT' && detectedCat!==currentCat.key){
+        alertBox.textContent=`⚠️ Catégorie détectée : ${detectedCat}. Tu publies dans ${currentCat.label}.`;
+        alertBox.classList.add('show');
+    }else{ alertBox.classList.remove('show'); }
+    renderPreview(parsed);
+    document.getElementById('fichePreview').style.display='flex';
+    document.getElementById('btnPublier').classList.add('active');
+}
+
+function renderPreview(parsed){
+    const box=document.getElementById('fichePreview');
+    box.innerHTML='';
+
+    // Infos match
+    const info=document.createElement('div');
+    info.className='match-info-card';
+    info.innerHTML=`<div class="match-info-row"><span class="match-info-label">MATCH</span><span class="match-info-value">${parsed.match_info.home_team||'??'} vs ${parsed.match_info.away_team||'??'}</span></div><div class="match-info-row"><span class="match-info-label">COMPÉTITION</span><span class="match-info-value">${parsed.match_info.league_name||'??'}</span></div><div class="match-info-row"><span class="match-info-label">DATE / HEURE</span><span class="match-info-value">${parsed.match_info.date_str||'??'} · ${parsed.match_info.time_str||'??'}</span></div><div class="match-info-row"><span class="match-info-label">IRG</span><span class="match-info-value" style="color:var(--gold-bright)">${parsed.match_info.irg_index??'?'}/100</span></div>`;
+    box.appendChild(info);
+
+    // Sections
+    const sections=[
+        {key:'pari_du_jour', title:'🎯 PARI DU JOUR', arr:parsed.pari_du_jour?[parsed.pari_du_jour]:[], max:1},
+        {key:'top_5_premium', title:'🏆 TOP 5 PREMIUM', arr:parsed.top_5_premium, max:5},
+        {key:'top_3_opportunites', title:'💡 TOP 3 OPPORTUNITÉS', arr:parsed.top_3_opportunites, max:3},
+        {key:'value_bet_premium', title:'💎 VALUE BET PREMIUM', arr:parsed.value_bet_premium?[parsed.value_bet_premium]:[], max:1},
+        {key:'value_bet_speculatif', title:'🎰 VALUE BET SPÉCULATIF', arr:parsed.value_bet_speculatif?[parsed.value_bet_speculatif]:[], max:1},
+        {key:'ticket_combine', title:'🎟️ TICKET COMBINÉ', arr:parsed.ticket_combine?[parsed.ticket_combine]:[], max:1},
+        {key:'paris_a_bannir', title:'🚫 PARIS À BANNIR', arr:parsed.paris_a_bannir, max:3}
+    ];
+
+    sections.forEach(sec=>{
+        if(!sec.arr||!sec.arr.length)return;
+        const wrap=document.createElement('div');
+        wrap.className='preview-section';
+        const countText=sec.max>1?`${sec.arr.length}/${sec.max}`:(sec.arr.length?'1/1':'0/1');
+        const overLimit=sec.arr.length>sec.max;
+        wrap.innerHTML=`<div class="preview-section-header"><span>${sec.title}</span><span class="preview-section-count" style="color:${overLimit?'var(--alert-red)':'var(--text-muted)'}">${countText}${overLimit?' ⚠️ EXCÈS':''}</span></div>`;
+        sec.arr.forEach((item,idx)=>{
+            const card=document.createElement('div');
+            card.className='preview-match-card';
+            const hasErr=!item.market_name;
+            const hasWarn=!item.odds && item.section_type!=='BANNED';
+            card.classList.add(hasErr?'error':(hasWarn?'warn':'ok'));
+            card.id=`card-${sec.key}-${idx}`;
+
+            let rankLabel='';
+            if(item.section_type==='TOP_5') rankLabel=['🥇','🥈','🥉','4️⃣','5️⃣'][item.rank_in_section-1]||'P'+item.rank_in_section;
+            else if(item.section_type==='OPPORTUNITE') rankLabel=['①','②','③'][item.rank_in_section-1]||'O'+item.rank_in_section;
+            else if(item.section_type==='BANNED') rankLabel='BAN'+item.rank_in_section;
+            else rankLabel='★';
+
+            let metricsHtml='';
+            if(item.section_type!=='BANNED'){
+                metricsHtml=`<span class="preview-metric"><b>Cote:</b> ${item.odds??'?'}</span>`;
+                if(item.probability_pct!=null) metricsHtml+=`<span class="preview-metric"><b>Proba:</b> ${item.probability_pct}%</span>`;
+                if(item.robustness_pct!=null) metricsHtml+=`<span class="preview-metric"><b>Rob:</b> ${item.robustness_pct}%</span>`;
+                if(item.confidence_stars!=null) metricsHtml+=`<span class="preview-metric"><b>Conf:</b> ${'⭐'.repeat(item.confidence_stars)}</span>`;
+            }else{
+                metricsHtml=`<span class="preview-metric" style="color:var(--alert-red)"><b>Raison:</b> ${item.reason||'—'}</span>`;
+            }
+            if(item.comment) metricsHtml+=`<span class="preview-metric"><b>Note:</b> ${item.comment}</span>`;
+
+            card.innerHTML=`<div class="preview-rank">${rankLabel}</div><div class="preview-market">${item.market_name||'<span style="color:var(--alert-red)">Marché non détecté</span>'}</div><div class="preview-metrics">${metricsHtml}</div><div class="preview-actions"><button onclick="toggleEdit('${sec.key}',${idx})">✏️ Modifier</button>${item.section_type!=='BANNED'?`<button onclick="deleteCard('${sec.key}',${idx})">🗑️ Supprimer</button>`:''}</div>`;
+            wrap.appendChild(card);
+
+            // Formulaire d'édition caché
+            const editForm=document.createElement('div');
+            editForm.className='edit-form';
+            editForm.id=`edit-${sec.key}-${idx}`;
+            const isBanned=item.section_type==='BANNED';
+            let starsHtml='';
+            for(let s=1;s<=5;s++){ starsHtml+=`<button type="button" class="edit-star ${(item.confidence_stars||0)>=s?'on':''}" onclick="setEditStar(this,${s})">⭐</button>`; }
+            editForm.innerHTML=`<input type="text" id="edit-market-${sec.key}-${idx}" placeholder="Marché" value="${(item.market_name||'').replace(/"/g,'&quot;')}">${isBanned?'':`<input type="number" step="0.01" id="edit-odds-${sec.key}-${idx}" placeholder="Cote" value="${item.odds??''}"><input type="number" id="edit-proba-${sec.key}-${idx}" placeholder="Probabilité %" value="${item.probability_pct??''}"><input type="number" id="edit-rob-${sec.key}-${idx}" placeholder="Robustesse %" value="${item.robustness_pct??''}"><div class="edit-stars" id="edit-stars-${sec.key}-${idx}">${starsHtml}</div>`}<div class="edit-actions"><button class="btn btn-emerald" onclick="saveEdit('${sec.key}',${idx})">✓ Valider</button><button class="btn" style="background:rgba(255,255,255,0.1);color:var(--text-primary)" onclick="cancelEdit('${sec.key}',${idx})">Annuler</button></div>`;
+            wrap.appendChild(editForm);
+        });
+        box.appendChild(wrap);
+    });
+}
+
+function toggleEdit(secKey,idx){
+    const form=document.getElementById(`edit-${secKey}-${idx}`);
+    form.classList.toggle('active');
+}
+function cancelEdit(secKey,idx){
+    document.getElementById(`edit-${secKey}-${idx}`).classList.remove('active');
+}
+function setEditStar(btn,val){
+    const container=btn.parentElement;
+    Array.from(container.children).forEach((b,i)=>{ b.classList.toggle('on',i<val); });
+    container.dataset.value=val;
+}
+function saveEdit(secKey,idx){
+    const item=currentParsed[secKey];
+    const arr=Array.isArray(item)?item:[item];
+    const target=arr[idx]; if(!target)return;
+    target.market_name=document.getElementById(`edit-market-${secKey}-${idx}`).value.trim()||target.market_name;
+    if(target.section_type!=='BANNED'){
+        const oddsVal=document.getElementById(`edit-odds-${secKey}-${idx}`).value;
+        if(oddsVal) target.odds=Number(oddsVal);
+        const probaVal=document.getElementById(`edit-proba-${secKey}-${idx}`).value;
+        if(probaVal) target.probability_pct=Number(probaVal);
+        const robVal=document.getElementById(`edit-rob-${secKey}-${idx}`).value;
+        if(robVal) target.robustness_pct=Number(robVal);
+        const starsContainer=document.getElementById(`edit-stars-${secKey}-${idx}`);
+        target.confidence_stars=Number(starsContainer.dataset.value||target.confidence_stars||0);
+    }
+    renderPreview(currentParsed);
+}
+function deleteCard(secKey,idx){
+    const item=currentParsed[secKey];
+    if(Array.isArray(item)){ item.splice(idx,1); if(!item.length) currentParsed[secKey]=secKey==='top_5_premium'||secKey==='top_3_opportunites'||secKey==='paris_a_bannir'?[]:null; }
+    else currentParsed[secKey]=null;
+    renderPreview(currentParsed);
+}
+
+function regenerateFiche(){
+    if(!currentParsed)return '';
+    const m=currentParsed.match_info;
+    let text=`=== DEBUT FICHE MATCH ===\nMATCH : ${m.home_team||'??'} vs ${m.away_team||'??'}\nCOMPÉTITION : ${m.league_name||'??'}\nDATE : ${m.date_str||'??'}\nHEURE : ${m.time_str||'??'}\nCATÉGORIE : ${currentCat.key}\nRANG : 1\nIRG : ${m.irg_index??80}\n`;
+
+    if(currentParsed.pari_du_jour){
+        const b=currentParsed.pari_du_jour;
+        text+=`\n[PARI_DU_JOUR]\nMARCHE : ${b.market_name||'??'}\nCOTE : ${b.odds??'?'}\nPROBABILITÉ : ${b.probability_pct??'?'}%\nROBUSTESSE : ${b.robustness_pct??'?'}/100\nCONFIANCE : ${b.confidence_stars??'?'}\n`;
+    }
+    if(currentParsed.top_5_premium&&currentParsed.top_5_premium.length){
+        text+=`\n[TOP_5_PREMIUM]\n`;
+        currentParsed.top_5_premium.forEach(b=>{
+            const rank=['🥇','🥈','🥉','4️⃣','5️⃣'][b.rank_in_section-1]||'P'+b.rank_in_section;
+            text+=`${rank} P${b.rank_in_section} : MARCHE : ${b.market_name||'??'} | COTE : ${b.odds??'?'} | PROBA : ${b.probability_pct??'?'}% | ROB : ${b.robustness_pct??'?'}/100 | CONF : ${b.confidence_stars??'?'}/100\n`;
+        });
+    }
+    if(currentParsed.top_3_opportunites&&currentParsed.top_3_opportunites.length){
+        text+=`\n[OPPORTUNITES]\n`;
+        currentParsed.top_3_opportunites.forEach(b=>{
+            const rank=['①','②','③'][b.rank_in_section-1]||'O'+b.rank_in_section;
+            text+=`${rank} O${b.rank_in_section} : MARCHE : ${b.market_name||'??'} | COTE : ${b.odds??'?'} | PROBA : ${b.probability_pct??'?'}% | ROB : ${b.robustness_pct??'?'}/100 | CONF : ${b.confidence_stars??'?'}/100\n`;
+        });
+    }
+    if(currentParsed.value_bet_premium){
+        const b=currentParsed.value_bet_premium;
+        text+=`\n[VALUE_BET_PREMIUM]\nMARCHE : ${b.market_name||'??'}\nCOTE : ${b.odds??'?'}\nPROBABILITÉ : ${b.probability_pct??'?'}%\nROBUSTESSE : ${b.robustness_pct??'?'}/100\nCONFIANCE : ${b.confidence_stars??'?'}/100\n`;
+    }
+    if(currentParsed.value_bet_speculatif){
+        const b=currentParsed.value_bet_speculatif;
+        text+=`\n[VALUE_BET_SPECULATIF]\nMARCHE : ${b.market_name||'??'}\nCOTE : ${b.odds??'?'}\nPROBABILITÉ : ${b.probability_pct??'?'}%\nROBUSTESSE : ${b.robustness_pct??'?'}/100\nCONFIANCE : ${b.confidence_stars??'?'}/100\n`;
+    }
+    if(currentParsed.ticket_combine){
+        const b=currentParsed.ticket_combine;
+        text+=`\n[TICKET_COMBINE]\nSEL1 : ${b.comment?b.comment.split(' + ')[0]||'??':'??'}\nSEL2 : ${b.comment?b.comment.split(' + ')[1]||'??':'??'}\nCOTE_TOTALE : ${b.odds??'?'}\nCONFIANCE : ${b.confidence_stars??'?'}/100\n`;
+    }
+    if(currentParsed.paris_a_bannir&&currentParsed.paris_a_bannir.length){
+        text+=`\n[PARIS_A_BANNIR]\n`;
+        currentParsed.paris_a_bannir.forEach(b=>{
+            text+=`BAN${b.rank_in_section} : ${b.market_name||'??'} | RAISON : ${b.reason||'Risque élevé'}\n`;
+        });
+    }
+    text+=`=== FIN FICHE ===`;
+    return text;
+}
+
+async function publierFiche(){
+    if(!currentParsed||!currentCat)return;
+    const adminKey=getAdminKey();
+    const cleanText=regenerateFiche();
+    if(!cleanText){showToast('Aucune donnée à publier.','error');return;}
+
+    // Vérification quota
+    const count=(existingMatches[currentCat.key]||[]).length;
+    if(count>=currentCat.quota){ showToast(`Quota ${currentCat.label} atteint (${count}/${currentCat.quota}). Supprimez une fiche d'abord.`,'error'); return; }
+
+    setLoading(true,'PUBLICATION...');
+    try{
+        const r=await fetch(API_BASE+'/import',{method:'POST',headers:{'Content-Type':'application/json','x-admin-key':adminKey},body:JSON.stringify({raw_text:cleanText,user_id:1,category_override:currentCat.key})});
+        const j=await r.json();
+        if(r.ok&&j.success){
+            showToast(`🚀 Publié ! ID: ${j.data.publication_id}`,'success');
+            document.getElementById('ficheInput').value='';
+            document.getElementById('fichePreview').style.display='none';
+            document.getElementById('btnPublier').classList.remove('active');
+            currentParsed=null;
+            loadDashboard();
+        }else{
+            const msg=j.message||j.code||JSON.stringify(j.errors||j);
+            showToast(`Erreur: ${msg}`,'error');
+        }
+    }catch(e){ showToast(`Réseau: ${e.name}: ${e.message}`,'error'); }
+    finally{ setLoading(false); }
 }
 </script>
 </body>
