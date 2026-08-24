@@ -1,4 +1,4 @@
-// MODULE 1 : parser.js (V11.14 GOLD MASTER)
+// MODULE 1 : parser.js (V11.17)
 const PARSER_VERSION = 'V11.17';
 const MAX_RAW_TEXT_LENGTH = 50000;
 const REGEX_UNICODE_SPACES = /\s+/g;
@@ -322,7 +322,7 @@ function parseTelegramText(rawText) {
             odds: extractAnyOdds(valueSpeculativeSection), 
             probability_pct: extractPercentage(valueSpeculativeSection), 
             robustness_pct: extractRobustnessScoreOrText(valueSpeculativeSection), 
-            confidence_stars: extractConfidenceStarsOrText(valueSpeculativeSource = valueSpeculativeSection) // Fallback protect
+            confidence_stars: extractConfidenceStarsOrText(valueSpeculativeSection) 
         }; 
     } 
 
@@ -336,7 +336,7 @@ function parseTelegramText(rawText) {
             market_name: 'Ticket Combiné Premium', 
             odds: extractAnyOdds(ticketSection, 'COTE_TOTALE') ?? extractAnyOdds(ticketSection, 'Cote'), 
             confidence_stars: extractConfidenceStarsOrText(ticketSection), 
-            comment: [sel1, sel2].filter(Boolean).join(' + ') || 'Sélections d'élite combinées' 
+            comment: [sel1, sel2].filter(Boolean).join(' + ') || 'Sélections élite combinées' 
         }; 
     } 
 
