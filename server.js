@@ -1,13 +1,7 @@
 /**
- * 🏆 PROJET MIKE EDGE - SERVER.JS (V11.16-S — SCELLÉ DÉFINITIF)
+ * 🏆 PROJET MIKE EDGE - SERVER.JS (V11.17.1)
  * -------------------------------------------------------------------
- * Corrections appliquées :
- * 1. Middleware verifyAdminKey centralisé (timingSafeEqual sur TOUTES les routes admin)
- * 2. category_override injecté APRÈS le parsing (le parser V11.14 n'accepte qu'un argument)
- * 3. Rate limiters séparés : strict pour les POST, permissif pour les GET
- * 4. Route /vrp/stats sécurisée via Render (pas de fuite Supabase directe)
- * -------------------------------------------------------------------
- * 🔧 FIX V11.16 : Ajout endpoints /health et /health/db + logs erreurs SQL dans /magazines
+ * FIX : Logs API /matches/:category + json_agg COALESCE
  * -------------------------------------------------------------------
  */
 
@@ -71,14 +65,12 @@ app.use((req, res, next) => {
 // RATE LIMITERS
 // ==========================================
 
-// POST / mutations : strict (20 req / 15 min)
 const mutationLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 20,
     message: { success: false, code: 'ERR_TOO_MANY_REQUESTS', message: 'Trop de tentatives, réessayez plus tard.' }
 });
 
-// GET / lecture : permissif (100 req / 15 min)
 const readLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 100,
@@ -86,7 +78,7 @@ const readLimiter = rateLimit({
 });
 
 // ==========================================
-// MIDDLEWARE ADMIN UNIVERSEL (SCELLÉ)
+// MIDDLEWARE ADMIN UNIVERSEL
 // ==========================================
 
 function verifyAdminKey(req, res, next) {
@@ -220,16 +212,11 @@ app.post('/api/v1/import', mutationLimiter, verifyAdminKey, async (req, res) => 
     }
 
     try {
-        // Étape 1 : Le parser lit le texte Telegram (scellé V11.14, 1 seul argument)
         const parsedData = parseTelegramText(raw_text);
 
-        // ╔══════════════════════════════════════════════════════════════════╗
-        // ║  INJECTION CATEGORY_OVERRIDE — LES 4 LIGNES MAGIQUES             ║
-        // ║  Si l'admin choisit FRANCE/ESPAGNE/etc dans le cockpit,          ║
-        // ║  on écrase "CHAMPIONNAT" par le vrai choix.                      ║
-        // ╚══════════════════════════════════════════════════════════════════╝
         if (category_override && ALLOWED_CATEGORIES.includes(category_override)) {
             parsedData.match_info.category_name = category_override;
+            console.log('[IMPORT] category_override injecté:', category_override);
         }
 
         const validation = validateParsedImport(parsedData);
@@ -265,22 +252,20 @@ app.post('/api/v1/import', mutationLimiter, verifyAdminKey, async (req, res) => 
 });
 
 // ==========================================
-// 🔬 ENDPOINTS DE SANTÉ (V11.16 FIX — AJOUTÉS)
+// 🔬 ENDPOINTS DE SANTÉ
 // ==========================================
 
-// 1. Santé serveur — aucune dépendance DB
 app.get('/health', (req, res) => {
     res.status(200).json({
         success: true,
         status: 'UP',
         service: 'mike-edge-backend',
-        version: '11.16-S',
+        version: '11.17.1',
         timestamp: new Date().toISOString(),
         environment: process.env.NODE_ENV || 'development'
     });
 });
 
-// 2. Santé base de données
 app.get('/health/db', async (req, res) => {
     try {
         const start = Date.now();
@@ -334,9 +319,13 @@ app.get('/api/v1/vrp/stats', readLimiter, verifyAdminKey, async (req, res) => {
     }
 });
 
+// 🔧 V11.17.1 FIX : Logs + COALESCE json_agg
 app.get('/api/v1/matches/:category', async (req, res) => {
     const category = req.params.category.toUpperCase();
+    console.log('[API] GET /matches/' + category);
+    
     if (!ALLOWED_CATEGORIES.includes(category)) {
+        console.log('[API] Catégorie invalide:', category);
         return res.status(400).json({ 
             success: false, 
             code: 'ERR_INVALID_CATEGORY', 
@@ -351,7 +340,7 @@ app.get('/api/v1/matches/:category', async (req, res) => {
                 t1.name as home_team,
                 t2.name as away_team,
                 mcr.rank_in_category,
-                (SELECT json_agg(b) FROM bets b WHERE b.match_id = m.id) as bets
+                COALESCE((SELECT json_agg(b) FROM bets b WHERE b.match_id = m.id), '[]'::json) as bets
             FROM matches m
             JOIN leagues l ON m.league_id = l.id
             JOIN teams t1 ON m.home_team_id = t1.id
@@ -362,8 +351,11 @@ app.get('/api/v1/matches/:category', async (req, res) => {
             LIMIT 50;
         `;
         const result = await pool.query(query, [category]);
+        console.log('[API] Résultats pour', category, ':', result.rows.length, 'matchs');
         res.json({ success: true, data: result.rows });
     } catch (err) {
+        console.error('[API] 🔴 ERREUR /matches/' + category + ':', err.message);
+        console.error('[API] Code SQL:', err.code, '| Detail:', err.detail);
         res.status(500).json({ success: false, code: 'ERR_FETCH_MATCHES' });
     }
 });
@@ -380,7 +372,7 @@ app.get('/api/v1/matches/detail/:id', async (req, res) => {
                 l.name as league_name,
                 t1.name as home_team,
                 t2.name as away_team,
-                (SELECT json_agg(b) FROM bets b WHERE b.match_id = m.id) as bets
+                COALESCE((SELECT json_agg(b) FROM bets b WHERE b.match_id = m.id), '[]'::json) as bets
             FROM matches m
             JOIN leagues l ON m.league_id = l.id
             JOIN teams t1 ON m.home_team_id = t1.id
@@ -403,7 +395,6 @@ app.get('/api/v1/magazines', async (req, res) => {
         const result = await pool.query('SELECT * FROM magazines WHERE is_active = true ORDER BY edition_date DESC LIMIT 20');
         res.json({ success: true, data: result.rows });
     } catch (err) {
-        // 🔴 V11.16 FIX : Log de l'erreur SQL exacte (était muet avant)
         console.error('❌ Erreur Fetch Magazines:', err.message);
         console.error('❌ Code SQL:', err.code, '| Detail:', err.detail);
         res.status(500).json({ success: false, code: 'ERR_FETCH_MAGAZINES' });
@@ -563,7 +554,7 @@ app.use((err, req, res, next) => {
 // ==========================================
 
 const server = app.listen(PORT, () => {
-    console.log(`🟢 Serveur Mike Edge V11.16-S connecté et démarré sur le port ${PORT}`);
+    console.log(`🟢 Serveur Mike Edge V11.17.1 connecté et démarré sur le port ${PORT}`);
 });
 
 const gracefulShutdown = async (signal) => {
