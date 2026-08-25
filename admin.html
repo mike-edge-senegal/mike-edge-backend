@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>🎛️ COCKPIT ADMIN — MIKE EDGE V11.17.4</title>
+<title>🎛️ COCKPIT ADMIN — MIKE EDGE V11.16</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <style>
@@ -124,7 +124,7 @@ th{background-color:rgba(212,175,55,0.1);color:var(--gold)}
 
 <div style="text-align:center;margin-bottom:16px;padding-top:10px;">
 <h1 style="font-size:20px;color:var(--gold);letter-spacing:1px;">🎛️ COCKPIT ADMIN MIKE EDGE</h1>
-<p style="font-size:11px;color:var(--text-muted);margin-top:2px;">V11.17.4</p>
+<p style="font-size:11px;color:var(--text-muted);margin-top:2px;">V11.17.5</p>
 <p id="apiUrlDisplay" style="font-size:10px;color:#666;margin-top:4px;"></p>
 </div>
 
@@ -318,6 +318,16 @@ function setLoading(on,text){
 
 function getAdminKey(){return document.getElementById('adminKeyInput').value.trim()}
 
+// 🔧 V11.17.5 : Persistance clé admin + fiche en cours
+window.addEventListener('DOMContentLoaded', function(){
+    var savedKey = localStorage.getItem('mike_admin_key');
+    if(savedKey){ document.getElementById('adminKeyInput').value = savedKey; }
+    var savedFiche = localStorage.getItem('mike_fiche_draft');
+    if(savedFiche){ document.getElementById('ficheInput').value = savedFiche; }
+});
+function saveAdminKeyLocal(){ var k = document.getElementById('adminKeyInput').value.trim(); if(k) localStorage.setItem('mike_admin_key', k); }
+function saveFicheDraft(){ var t = document.getElementById('ficheInput').value; localStorage.setItem('mike_fiche_draft', t); }
+
 async function testAdminKey(){
     var s=document.getElementById('authStatus');
     var b=document.getElementById('testKeyBtn');
@@ -329,7 +339,7 @@ async function testAdminKey(){
         var r=await fetch(API_BASE+'/vrp/stats',{method:'GET',headers:{'x-admin-key':k}});
         b.disabled=false;
         if(r.status===401||r.status===403){s.textContent='❌ Clé incorrecte';s.style.color='#E0115F';b.style.background='#E0115F';}
-        else if(r.ok){s.textContent='✅ Clé valide';s.style.color='#50C878';b.style.background='#50C878';}
+        else if(r.ok){s.textContent='✅ Clé valide';s.style.color='#50C878';b.style.background='#50C878';saveAdminKeyLocal();}
         else{s.textContent='⚠️ Erreur serveur '+r.status;s.style.color='#FF8C00';b.style.background='#FF8C00';}
     }catch(e){b.disabled=false;s.textContent='❌ Réseau indisponible';s.style.color='#E0115F';b.style.background='#E0115F';}
 }
@@ -668,7 +678,7 @@ function parseTelegramTextClient(rawText){
     out.match_info.time_str=timeM?timeM[1].trim():null;
     out.match_info.league_name=leagueM?leagueM[1].trim():'Ligue Internationale';
     out.match_info.irg_index=irgM?Number(irgM[1]):80;
-    out.match_info.rank_in_category=1; // V11.17.4 : classement par IRG côté API
+    out.match_info.rank_in_category=1; // V11.17.5 : classement par IRG côté API
 
     if(out.match_info.home_team&&out.match_info.away_team&&out.match_info.league_name){
         out.publication_title=out.match_info.home_team+' vs '+out.match_info.away_team+' — '+out.match_info.league_name;
@@ -762,7 +772,9 @@ window.addEventListener('DOMContentLoaded', function(){
     loadDashboard();
     var btn=document.getElementById('testKeyBtn');
     if(btn){btn.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();testAdminKey();});btn.addEventListener('touchstart',function(e){e.preventDefault();e.stopPropagation();testAdminKey();},{passive:false});}
-    var btnA=document.getElementById('btnAnalyser');
+    var ficheInput = document.getElementById('ficheInput');
+if(ficheInput){ ficheInput.addEventListener('input', saveFicheDraft); }
+var btnA=document.getElementById('btnAnalyser');
     if(btnA){btnA.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();analyserFiche();});btnA.addEventListener('touchstart',function(e){e.preventDefault();e.stopPropagation();analyserFiche();},{passive:false});}
     var btnP=document.getElementById('btnPublier');
     if(btnP){btnP.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();publierFiche();});btnP.addEventListener('touchstart',function(e){e.preventDefault();e.stopPropagation();publierFiche();},{passive:false});}
@@ -1038,7 +1050,7 @@ async function publierFiche(){
         const r=await fetch(API_BASE+'/import',{method:'POST',headers:{'Content-Type':'application/json','x-admin-key':adminKey},body:JSON.stringify({raw_text:cleanText,user_id:1,category_override:currentCat.key})});
         const j=await r.json();
         if(r.ok&&j.success){
-            showToast(`🚀 Publié ! ID: ${j.data.publication_id}`,'success');
+            showToast(`🚀 Publié ! ID: ${j.data.publication_id}`,'success'); localStorage.removeItem('mike_fiche_draft');
             document.getElementById('ficheInput').value='';
             document.getElementById('fichePreview').style.display='none';
             document.getElementById('btnPublier').classList.remove('active');
