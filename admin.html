@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>🎛️ COCKPIT ADMIN — MIKE EDGE V11.17.4</title>
+<title>🎛️ COCKPIT ADMIN — MIKE EDGE V11.16</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <style>
@@ -40,6 +40,7 @@ th{background-color:rgba(212,175,55,0.1);color:var(--gold)}
 .toast-success{background:rgba(80,200,120,0.2);color:var(--emerald-success);border:1px solid var(--emerald-success)}
 .toast-error{background:rgba(224,17,95,0.2);color:var(--alert-red);border:1px solid var(--alert-red)}
 
+<style>
 /* ---------- DASHBOARD ---------- */
 .pronos-dash{ display:grid; grid-template-columns:1fr; gap:12px; margin-bottom:16px }
 .cat-card{ background:var(--bg-card); border:1px solid var(--border-gold); border-radius:16px; padding:16px; position:relative; overflow:hidden; cursor:pointer; transition:transform 0.15s }
@@ -123,7 +124,7 @@ th{background-color:rgba(212,175,55,0.1);color:var(--gold)}
 
 <div style="text-align:center;margin-bottom:16px;padding-top:10px;">
 <h1 style="font-size:20px;color:var(--gold);letter-spacing:1px;">🎛️ COCKPIT ADMIN MIKE EDGE</h1>
-<p style="font-size:11px;color:var(--text-muted);margin-top:2px;">V11.17.4 FIX DATE + IRG</p>
+<p style="font-size:11px;color:var(--text-muted);margin-top:2px;">V11.17 FIX INTEGER</p>
 <p id="apiUrlDisplay" style="font-size:10px;color:#666;margin-top:4px;"></p>
 </div>
 
@@ -215,37 +216,65 @@ var MAX_FILE_SIZE = 10 * 1024 * 1024;
 function showToast(msg, type){var t=document.getElementById('toast');t.textContent=msg;t.className=type==='success'?'toast-success':'toast-error';t.style.display='block';setTimeout(function(){t.style.display='none'},4000)}
 function validateImageFile(f){if(!f)return"Aucun fichier.";if(!f.type.startsWith('image/'))return"Ce n'est pas une image.";if(f.size>MAX_FILE_SIZE)return"Fichier trop lourd (max 10Mo).";return null}
 
+// ============================================
+// 🗜️ COMPRESSION AUTO HD (V11.16+)
+// Redimensionne à max 1080px de large, qualité JPEG 80%
+// ============================================
 async function compressImage(file, options) {
     options = options || {};
     var maxWidth = options.maxWidth || 1080;
     var quality = options.quality || 0.8;
+    
     return new Promise(function(resolve, reject) {
         var img = new Image();
         var url = URL.createObjectURL(file);
+        
         img.onload = function() {
             URL.revokeObjectURL(url);
             var w = img.width;
             var h = img.height;
-            if (w > maxWidth) { h = Math.round(h * maxWidth / w); w = maxWidth; }
+            
+            // Redimensionnement proportionnel
+            if (w > maxWidth) {
+                h = Math.round(h * maxWidth / w);
+                w = maxWidth;
+            }
+            
             var canvas = document.createElement('canvas');
-            canvas.width = w; canvas.height = h;
+            canvas.width = w;
+            canvas.height = h;
             var ctx = canvas.getContext('2d');
-            ctx.fillStyle = '#000000'; ctx.fillRect(0, 0, w, h);
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, w, h);
             ctx.drawImage(img, 0, 0, w, h);
+            
             canvas.toBlob(function(blob) {
-                var compressed = new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg', lastModified: Date.now() });
+                var compressed = new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), {
+                    type: 'image/jpeg',
+                    lastModified: Date.now()
+                });
+                console.log('[COMPRESS] ' + file.name + ': ' + (file.size/1024).toFixed(0) + 'Ko → ' + (compressed.size/1024).toFixed(0) + 'Ko (' + Math.round(100*compressed.size/file.size) + '%)');
                 resolve(compressed);
             }, 'image/jpeg', quality);
         };
-        img.onerror = function() { URL.revokeObjectURL(url); reject(new Error('Erreur chargement image')); };
+        
+        img.onerror = function() {
+            URL.revokeObjectURL(url);
+            reject(new Error('Erreur chargement image'));
+        };
+        
         img.src = url;
     });
 }
 
+// ============================================
+// 🔬 DIAGNOSTIC 3 ÉTAPES (V11.16)
+// ============================================
 window.addEventListener('DOMContentLoaded', async function(){
     var banner = document.getElementById('connectionBanner');
     banner.className = 'conn-checking';
     banner.textContent = '⏳ ÉTAPE 1/3 : Serveur Render...';
+
     try {
         var res = await fetch(window.location.origin + '/health');
         var data = await res.json();
@@ -256,6 +285,7 @@ window.addEventListener('DOMContentLoaded', async function(){
         banner.textContent = '🔴 SERVEUR RENDER INJOIGNABLE — ' + err.message;
         return;
     }
+
     try {
         var res2 = await fetch(window.location.origin + '/health/db');
         var data2 = await res2.json();
@@ -266,6 +296,7 @@ window.addEventListener('DOMContentLoaded', async function(){
         banner.textContent = '🔴 SUPABASE INACCESSIBLE — ' + err.message;
         return;
     }
+
     try {
         var res3 = await fetch(API_BASE + '/magazines');
         var data3 = await res3.json();
@@ -303,14 +334,49 @@ async function testAdminKey(){
     }catch(e){b.disabled=false;s.textContent='❌ Réseau indisponible';s.style.color='#E0115F';b.style.background='#E0115F';}
 }
 
+function verifySheet(){
+    var text=document.getElementById('rawTextInput').value.trim();
+    var box=document.getElementById('previewBox'),det=document.getElementById('previewDetails'),btn=document.getElementById('publishSheetBtn');
+    if(!text){showToast("Collez une fiche.");return}
+    box.style.display='block';det.innerHTML='';
+    if(/vs|contre|match/i.test(text)){
+        var p=document.createElement('p');p.innerHTML='✅ Structure : <span class="status-ok">VALIDE</span>';det.appendChild(p);btn.style.display='block';
+    }else{var p=document.createElement('p');p.className='status-err';p.textContent='❌ Format non reconnu.';det.appendChild(p);btn.style.display='none';}
+}
+
+async function publishSector(){
+    var text=document.getElementById('rawTextInput').value.trim(),adminKey;
+    try{adminKey=getAdminKey()}catch(e){showToast(e.message);return}
+    setLoading(true,'PUBLICATION...');
+    try{
+        var r=await fetch(API_BASE+'/import',{method:'POST',headers:{'Content-Type':'application/json','x-admin-key':adminKey},body:JSON.stringify({raw_text:text,user_id:1,category_override:document.getElementById('categorySelect').value})});
+        var j=await r.json();
+        if(r.ok&&j.success){showToast("🚀 Publié ! ID: "+j.data.publication_id,'success');document.getElementById('rawTextInput').value='';document.getElementById('previewBox').style.display='none'}
+        else{showToast("Erreur: "+(j.message||JSON.stringify(j.errors)))}
+    }catch(e){showToast("Réseau: "+e.name+": "+e.message)}finally{setLoading(false)}
+}
+
+// ============================================
+// KIOSQUE MAGAZINE — AVEC COMPRESSION AUTO
+// ============================================
 async function handlePagesSelect(input){
     var files=Array.from(input.files);if(!files.length)return;
+    
+    // Validation rapide
     for(var i=0;i<files.length;i++){var e=validateImageFile(files[i]);if(e){showToast(e);input.value='';return}}
+    
     setLoading(true,'COMPRESSION ' + files.length + ' PAGE(S)...');
+    
     for(var i=0;i<files.length;i++){
-        try{var compressed=await compressImage(files[i],{maxWidth:1080,quality:0.8});selectedPages.push(compressed);}
-        catch(err){console.warn('[COMPRESS] Échec page '+(i+1)+', fallback original');selectedPages.push(files[i]);}
+        try{
+            var compressed=await compressImage(files[i],{maxWidth:1080,quality:0.8});
+            selectedPages.push(compressed);
+        }catch(err){
+            console.warn('[COMPRESS] Échec page '+(i+1)+', fallback original');
+            selectedPages.push(files[i]);
+        }
     }
+    
     renderPageQueue();input.value='';setLoading(false);
 }
 
@@ -333,20 +399,31 @@ async function saveMagazine(){
     try{adminKey=getAdminKey()}catch(e){showToast(e.message);return}
     if(!title||!date){showToast("Titre et date requis.");return}
     if(!selectedPages.length){showToast("Ajoutez des pages.");return}
+    
+    // Validation cover
     if(cover){var e=validateImageFile(cover);if(e){showToast(e);return}}
+    
     setLoading(true,'COMPRESSION & UPLOAD...');
+    
     try{
         var coverUrl='';
+        
+        // Compression auto de la couverture
         if(cover){
-            try{var compressedCover=await compressImage(cover,{maxWidth:1080,quality:0.8});cover=compressedCover;}
-            catch(err){console.warn('[COMPRESS] Cover fallback original');}
+            try{
+                var compressedCover=await compressImage(cover,{maxWidth:1080,quality:0.8});
+                cover=compressedCover;
+            }catch(err){console.warn('[COMPRESS] Cover fallback original');}
             var fn='covers/'+Date.now()+'_'+cover.name;
             await supabaseClient.storage.from('magazines').upload(fn,cover);
             var d=supabaseClient.storage.from('magazines').getPublicUrl(fn);
             coverUrl=d.data.publicUrl;
         }
+        
         var mag=await supabaseClient.from('magazines').insert([{title:title,edition_date:date,cover_url:coverUrl,is_active:true}]).select('id').single();
         if(mag.error||!mag.data)throw new Error(mag.error?.message||"Échec");
+        
+        // Pages déjà compressées dans handlePagesSelect
         for(var i=0;i<selectedPages.length;i++){
             var f=selectedPages[i];
             var pn='pages/'+mag.data.id+'/'+Date.now()+'_p'+(i+1)+'_'+f.name;
@@ -354,6 +431,7 @@ async function saveMagazine(){
             var pd=supabaseClient.storage.from('magazines').getPublicUrl(pn);
             await supabaseClient.from('magazine_pages').insert([{magazine_id:mag.data.id,page_number:i+1,image_url:pd.data.publicUrl}]);
         }
+        
         showToast("💾 Album enregistré !",'success');
         selectedPages=[];renderPageQueue();
         document.getElementById('magTitle').value='';
@@ -375,14 +453,23 @@ async function toggleFlashStatus(){
     }catch(e){showToast("Erreur: "+e.message)}finally{setLoading(false)}
 }
 
+// ============================================
+// INFO FLASH — AVEC COMPRESSION AUTO
+// ============================================
 async function uploadFlashInfo(){
     var file=document.getElementById('flashImageInput').files[0],adminKey;
     try{adminKey=getAdminKey()}catch(e){showToast(e.message);return}
     var e=validateImageFile(file);if(e){showToast(e);return}
+    
     setLoading(true,'COMPRESSION & PUBLICATION...');
+    
     try{
-        try{var compressed=await compressImage(file,{maxWidth:1080,quality:0.8});file=compressed;}
-        catch(err){console.warn('[COMPRESS] Flash fallback original');}
+        // Compression auto
+        try{
+            var compressed=await compressImage(file,{maxWidth:1080,quality:0.8});
+            file=compressed;
+        }catch(err){console.warn('[COMPRESS] Flash fallback original');}
+        
         await supabaseClient.from('flash_infos').update({is_active:false}).eq('is_active',true);
         var fn='flash/'+Date.now()+'_'+file.name;
         await supabaseClient.storage.from('magazines').upload(fn,file);
@@ -392,14 +479,23 @@ async function uploadFlashInfo(){
     }catch(e){showToast("Erreur: "+e.message)}finally{setLoading(false)}
 }
 
+// ============================================
+// TICKET SESSION — AVEC COMPRESSION AUTO
+// ============================================
 async function uploadSessionTicket(){
     var file=document.getElementById('sessionTicketInput').files[0],adminKey;
     try{adminKey=getAdminKey()}catch(e){showToast(e.message);return}
     var e=validateImageFile(file);if(e){showToast(e);return}
+    
     setLoading(true,'COMPRESSION & TÉLÉVERSEMENT...');
+    
     try{
-        try{var compressed=await compressImage(file,{maxWidth:1080,quality:0.8});file=compressed;}
-        catch(err){console.warn('[COMPRESS] Ticket fallback original');}
+        // Compression auto
+        try{
+            var compressed=await compressImage(file,{maxWidth:1080,quality:0.8});
+            file=compressed;
+        }catch(err){console.warn('[COMPRESS] Ticket fallback original');}
+        
         var fn='session_tickets/'+Date.now()+'_'+file.name;
         await supabaseClient.storage.from('tickets').upload(fn,file);
         var d=await supabaseClient.storage.from('tickets').getPublicUrl(fn);
@@ -444,8 +540,8 @@ const SECTION_HEADERS_CLIENT = [
     '[META_MATCH]','=== DEBUT FICHE MATCH ===','🎯 AUDIT','FIN FICHE','=== FIN FICHE ==='
 ];
 
-function normalizeHeaderClient(v){ return String(v||'').normalize('NFKC').replace(/[️‍]/gu,'').replace(/\p{Extended_Pictographic}/gu,'').replace(/\s+/g,' ').trim().toLowerCase(); }
-function escapeRegExpClient(v){ return String(v).replace(/[.*+?^${}()|[\]\]/g,'\$&'); }
+function normalizeHeaderClient(v){ return String(v||'').normalize('NFKC').replace(/[\uFE0F\u200D]/gu,'').replace(/\p{Extended_Pictographic}/gu,'').replace(/\s+/g,' ').trim().toLowerCase(); }
+function escapeRegExpClient(v){ return String(v).replace(/[.*+?^${}()|[\]\\]/g,'\\$&'); }
 function headerMatchesClient(line,tag){ return new RegExp('^'+escapeRegExpClient(normalizeHeaderClient(tag))+'(?:\s*[:—\-⭐★✅✔].*)?$','iu').test(line); }
 function getNextAliasesClient(currentAliases){
     const cur=new Set(currentAliases.map(normalizeHeaderClient));
@@ -453,21 +549,16 @@ function getNextAliasesClient(currentAliases){
 }
 function getSectionClient(text,aliases,nextAliases){
     if(typeof text!=='string')return null;
-    const lines=text.split(/
-?
-/);
+    const lines=text.split(/\r?\n/);
     let start=-1;
     for(let i=0;i<lines.length;i++){ if(aliases.some(a=>headerMatchesClient(normalizeHeaderClient(lines[i]),normalizeHeaderClient(a)))){start=i;break;} }
     if(start===-1)return null;
     let end=lines.length;
     for(let i=start+1;i<lines.length;i++){ if(nextAliases.some(a=>headerMatchesClient(normalizeHeaderClient(lines[i]),normalizeHeaderClient(a)))){end=i;break;} }
-    return lines.slice(start+1,end).join('
-');
+    return lines.slice(start+1,end).join('\n');
 }
 function extractTeamsClient(raw){
-    const lines=raw.split(/
-?
-/);
+    const lines=raw.split(/\r?\n/);
     for(const line of lines){
         if(/^\s*(?:MATCH|EQUIPES?)\s*:/iu.test(line)){
             const c=line.replace(/^\s*(?:MATCH|EQUIPES?)\s*:\s*/iu,'').trim();
@@ -485,24 +576,20 @@ function extractTeamsClient(raw){
 function extractLineClient(block,kw){
     if(!block)return null;
     const re=new RegExp(escapeRegExpClient(kw),'iu');
-    const line=block.split(/
-?
-/).find(l=>re.test(l.normalize('NFC')));
+    const line=block.split(/\r?\n/).find(l=>re.test(l.normalize('NFC')));
     return line?line.trim():null;
 }
 function extractOddsClient(block,tag){
     if(!block)return null;
-    if(tag){ const cm=block.match(new RegExp('\b'+escapeRegExpClient(tag)+'\s*:\s*([\d]+(?:[.,]\d+)?)','iu')); if(cm)return Number(cm[1].replace(',','.')); }
-    const pm=block.match(/(?:COTE_TOTALE|COTE TOTALE)\s*:\s*([\d]+(?:[.,]\d+)?)/iu);
+    if(tag){ const cm=block.match(new RegExp('\\b'+escapeRegExpClient(tag)+'\s*:\s*([\d]+(?:[.,]\d+)?)','iu')); if(cm)return Number(cm[1].replace(',','.')); }
+    const pm=block.match(/\b(?:COTE_TOTALE|COTE TOTALE)\s*:\s*([\d]+(?:[.,]\d+)?)/iu);
     if(pm)return Number(pm[1].replace(',','.'));
-    const m=block.match(/(?:COTE)\s*:\s*([\d]+(?:[.,]\d+)?)/iu);
+    const m=block.match(/\b(?:COTE)\s*:\s*([\d]+(?:[.,]\d+)?)/iu);
     return m?Number(m[1].replace(',','.')):null;
 }
 function extractPctClient(block){
     if(!block)return null;
-    for(const line of block.split(/
-?
-/)){
+    for(const line of block.split(/\r?\n/)){
         const m=line.match(/(?:Probabilité|PROBABILITE|Proba)[^:]*:\s*([\d.,]+)\s*%/iu);
         if(m){ const v=Number(m[1].replace(',','.')); return Number.isFinite(v)?Math.round(v):null; }
     }
@@ -510,10 +597,8 @@ function extractPctClient(block){
 }
 function extractRobClient(block){
     if(!block)return null;
-    for(const line of block.split(/
-?
-/)){
-        const m=line.match(/(?:Robustesse|ROBUSTESSE|ROB|Confiance|Conf)[^:]*:\s*(\d+(?:[.,]\d+)?)\s*(?:\/\s*100)?/iu);
+    for(const line of block.split(/\r?\n/)){
+        const m=line.match(/(?:Robustesse|ROBUSTESSE|ROB\b|Confiance|Conf\b)[^:]*:\s*(\d+(?:[.,]\d+)?)\s*(?:\/\s*100)?/iu);
         if(m){ const v=Number(m[1].replace(',','.')); return Number.isFinite(v)?Math.round(v):null; }
     }
     return null;
@@ -531,12 +616,10 @@ function extractConfClient(block){
 }
 function extractMarketClient(block,labels){
     if(!block)return null;
-    for(const line of block.split(/
-?
-/)){
+    for(const line of block.split(/\r?\n/)){
         const trimmed=line.trim();
         for(const label of labels){
-            const m=trimmed.match(new RegExp('^\s*'+escapeRegExpClient(label)+'\s*(?::|—|-)\s*(.+)$','ium'));
+            const m=trimmed.match(new RegExp('^\\s*'+escapeRegExpClient(label)+'\\s*(?::|—|-)\\s*(.+)$','ium'));
             if(m){
                 let val=m[1].trim();
                 const pipeIdx=val.indexOf('|');
@@ -575,17 +658,12 @@ function parseTelegramTextClient(rawText){
     out.match_info.away_team=teams.away_team;
 
     const catM=rawText.match(/^\s*CAT(?:E|É)GORIE\s*:\s*([A-Z0-9_]+)\s*$/imu);
-    const dateM=rawText.match(/📅\s*([^|
-•]+)/iu)||rawText.match(/^\s*DATE\s*:\s*([^|
-•]+)\s*$/imu);
-    const timeM=rawText.match(/(?:HEURE\s*[:—\-]|•\s*HEURE\s*[:—\-]|HEURE\s*)\s*(\d{1,2}:\d{2})/iu)||rawText.match(/^\s*HEURE\s*:\s*(\d{1,2}:\d{2})/imu)||rawText.match(/(?:HEURE\s*:|HEURE)\s*(\d{1,2}:\d{2})/iu);
-    const leagueM=rawText.match(/(?:COMPÉTITION|COMPETITION|LIGUE)\s*:\s*([^|
-]+)/iu)||rawText.match(/^\s*COMPÉTITION\s*[-—]\s*([^
-]+)$/imu);
-    const irgM=rawText.match(/(?:SCORE\s+IRG|IRG)\s*:\s*(\d{1,3})/iu)||rawText.match(/IR\s*:\s*(\d{1,3})/iu);
+    const dateM=rawText.match(/📅\s*([^|\n•]+)/iu)||rawText.match(/^\s*DATE\s*:\s*([^|\n•]+)\s*$/imu);
+    const timeM=rawText.match(/(?:HEURE\s*[:—\-]|•\s*HEURE\s*[:—\-]|HEURE\s*)\s*(\d{1,2}:\d{2})/iu)||rawText.match(/^\s*HEURE\s*:\s*(\d{1,2}:\d{2})/imu)||rawText.match(/(?:HEURE\s*:|\bHEURE\b)\s*(\d{1,2}:\d{2})/iu);
+    const leagueM=rawText.match(/(?:COMPÉTITION|COMPETITION|LIGUE)\s*:\s*([^|\n]+)/iu)||rawText.match(/^\s*COMPÉTITION\s*[-—]\s*([^\n]+)$/imu);
+    const irgM=rawText.match(/(?:SCORE\s+IRG|IRG)\s*:\s*(\d{1,3})\b/iu)||rawText.match(/\bIR\s*:\s*(\d{1,3})\b/iu);
 
     out.match_info.category_name=catM?catM[1].toUpperCase().trim():'CHAMPIONNAT';
-    out.match_info.rank_in_category=1; // V11.17.4 : toujours 1, classement par IRG côté API
     out.match_info.date_str=dateM?dateM[1].trim():null;
     out.match_info.time_str=timeM?timeM[1].trim():null;
     out.match_info.league_name=leagueM?leagueM[1].trim():'Ligue Internationale';
@@ -646,16 +724,14 @@ function parseTelegramTextClient(rawText){
         out.ticket_combine={section_type:'COMBINE',rank_in_section:1,market_name:'Ticket Combiné Premium',
             odds:extractOddsClient(ticS,'COTE_TOTALE')??extractOddsClient(ticS,'Cote'),
             confidence_stars:extractConfClient(ticS),
-            comment:[sel1,sel2].filter(Boolean).join(' + ')||'Sélections d'élite combinées'};
+            comment:[sel1,sel2].filter(Boolean).join(' + ')||'Sélections d\'élite combinées'};
     }
 
     const banS=getSectionClient(rawText,DICTIONARY_CLIENT.BANNED,getNextAliasesClient(DICTIONARY_CLIENT.BANNED));
     if(banS){
         const seen=new Set();
-        for(const line of banS.split('
-')){
-            const bm=line.match(/^\s*BAN(\d+)\s*:\s*([^|
-]+?)(?:\s*\|\s*(?:RAISON\s*:)?\s*(.*))?$/i);
+        for(const line of banS.split('\n')){
+            const bm=line.match(/^\s*BAN(\d+)\s*:\s*([^|\n]+?)(?:\s*\|\s*(?:RAISON\s*:)?\s*(.*))?$/i);
             if(!bm)continue;
             const r=Number(bm[1]); if(r<1||r>3||seen.has(r))continue; seen.add(r);
             out.paris_a_bannir.push({section_type:'BANNED',rank_in_section:r,market_name:bm[2].trim(),reason:bm[3]?bm[3].trim():'Risque élevé'});
@@ -789,11 +865,13 @@ function renderPreview(parsed){
     const box=document.getElementById('fichePreview');
     box.innerHTML='';
 
+    // Infos match
     const info=document.createElement('div');
     info.className='match-info-card';
     info.innerHTML=`<div class="match-info-row"><span class="match-info-label">MATCH</span><span class="match-info-value">${parsed.match_info.home_team||'??'} vs ${parsed.match_info.away_team||'??'}</span></div><div class="match-info-row"><span class="match-info-label">COMPÉTITION</span><span class="match-info-value">${parsed.match_info.league_name||'??'}</span></div><div class="match-info-row"><span class="match-info-label">DATE / HEURE</span><span class="match-info-value">${parsed.match_info.date_str||'??'} · ${parsed.match_info.time_str||'??'}</span></div><div class="match-info-row"><span class="match-info-label">IRG</span><span class="match-info-value" style="color:var(--gold-bright)">${parsed.match_info.irg_index??'?'}/100</span></div>`;
     box.appendChild(info);
 
+    // Sections
     const sections=[
         {key:'pari_du_jour', title:'🎯 PARI DU JOUR', arr:parsed.pari_du_jour?[parsed.pari_du_jour]:[], max:1},
         {key:'top_5_premium', title:'🏆 TOP 5 PREMIUM', arr:parsed.top_5_premium, max:5},
@@ -839,6 +917,7 @@ function renderPreview(parsed){
             card.innerHTML=`<div class="preview-rank">${rankLabel}</div><div class="preview-market">${item.market_name||'<span style="color:var(--alert-red)">Marché non détecté</span>'}</div><div class="preview-metrics">${metricsHtml}</div><div class="preview-actions"><button data-action="edit" data-sec="${sec.key}" data-idx="${idx}">✏️ Modifier</button>${item.section_type!=='BANNED'?`<button data-action="delete" data-sec="${sec.key}" data-idx="${idx}">🗑️ Supprimer</button>`:''}</div>`;
             wrap.appendChild(card);
 
+            // Formulaire d'édition caché
             const editForm=document.createElement('div');
             editForm.className='edit-form';
             editForm.id=`edit-${sec.key}-${idx}`;
@@ -891,88 +970,42 @@ function deleteCard(secKey,idx){
 function regenerateFiche(){
     if(!currentParsed)return '';
     const m=currentParsed.match_info;
-    // V11.17.4 FIX : fallback date du jour si manquante
-    const todayStr = new Date().toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'});
-    let text=`=== DEBUT FICHE MATCH ===
-MATCH : ${m.home_team||'??'} vs ${m.away_team||'??'}
-COMPÉTITION : ${m.league_name||'??'}
-DATE : ${m.date_str||todayStr}
-HEURE : ${m.time_str||'20:00'}
-CATÉGORIE : ${currentCat.key}
-RANG : 1
-IRG : ${m.irg_index??80}
-`;
+    let text=`=== DEBUT FICHE MATCH ===\nMATCH : ${m.home_team||'??'} vs ${m.away_team||'??'}\nCOMPÉTITION : ${m.league_name||'??'}\nDATE : ${m.date_str||'??'}\nHEURE : ${m.time_str||'??'}\nCATÉGORIE : ${currentCat.key}\nRANG : 1\nIRG : ${m.irg_index??80}\n`;
 
     if(currentParsed.pari_du_jour){
         const b=currentParsed.pari_du_jour;
-        text+=`
-[PARI_DU_JOUR]
-MARCHE : ${b.market_name||'??'}
-COTE : ${b.odds??'?'}
-PROBABILITÉ : ${b.probability_pct??'?'}%
-ROBUSTESSE : ${b.robustness_pct??'?'}/100
-CONFIANCE : ${b.confidence_stars??'?'}
-`;
+        text+=`\n[PARI_DU_JOUR]\nMARCHE : ${b.market_name||'??'}\nCOTE : ${b.odds??'?'}\nPROBABILITÉ : ${b.probability_pct??'?'}%\nROBUSTESSE : ${b.robustness_pct??'?'}/100\nCONFIANCE : ${b.confidence_stars??'?'}\n`;
     }
     if(currentParsed.top_5_premium&&currentParsed.top_5_premium.length){
-        text+=`
-[TOP_5_PREMIUM]
-`;
+        text+=`\n[TOP_5_PREMIUM]\n`;
         currentParsed.top_5_premium.forEach(b=>{
             const rank=['🥇','🥈','🥉','4️⃣','5️⃣'][b.rank_in_section-1]||'P'+b.rank_in_section;
-            text+=`${rank} P${b.rank_in_section} : MARCHE : ${b.market_name||'??'} | COTE : ${b.odds??'?'} | PROBA : ${b.probability_pct??'?'}% | ROB : ${b.robustness_pct??'?'}/100 | CONF : ${b.confidence_stars??'?'}/100
-`;
+            text+=`${rank} P${b.rank_in_section} : MARCHE : ${b.market_name||'??'} | COTE : ${b.odds??'?'} | PROBA : ${b.probability_pct??'?'}% | ROB : ${b.robustness_pct??'?'}/100 | CONF : ${b.confidence_stars??'?'}/100\n`;
         });
     }
     if(currentParsed.top_3_opportunites&&currentParsed.top_3_opportunites.length){
-        text+=`
-[OPPORTUNITES]
-`;
+        text+=`\n[OPPORTUNITES]\n`;
         currentParsed.top_3_opportunites.forEach(b=>{
             const rank=['①','②','③'][b.rank_in_section-1]||'O'+b.rank_in_section;
-            text+=`${rank} O${b.rank_in_section} : MARCHE : ${b.market_name||'??'} | COTE : ${b.odds??'?'} | PROBA : ${b.probability_pct??'?'}% | ROB : ${b.robustness_pct??'?'}/100 | CONF : ${b.confidence_stars??'?'}/100
-`;
+            text+=`${rank} O${b.rank_in_section} : MARCHE : ${b.market_name||'??'} | COTE : ${b.odds??'?'} | PROBA : ${b.probability_pct??'?'}% | ROB : ${b.robustness_pct??'?'}/100 | CONF : ${b.confidence_stars??'?'}/100\n`;
         });
     }
     if(currentParsed.value_bet_premium){
         const b=currentParsed.value_bet_premium;
-        text+=`
-[VALUE_BET_PREMIUM]
-MARCHE : ${b.market_name||'??'}
-COTE : ${b.odds??'?'}
-PROBABILITÉ : ${b.probability_pct??'?'}%
-ROBUSTESSE : ${b.robustness_pct??'?'}/100
-CONFIANCE : ${b.confidence_stars??'?'}/100
-`;
+        text+=`\n[VALUE_BET_PREMIUM]\nMARCHE : ${b.market_name||'??'}\nCOTE : ${b.odds??'?'}\nPROBABILITÉ : ${b.probability_pct??'?'}%\nROBUSTESSE : ${b.robustness_pct??'?'}/100\nCONFIANCE : ${b.confidence_stars??'?'}/100\n`;
     }
     if(currentParsed.value_bet_speculatif){
         const b=currentParsed.value_bet_speculatif;
-        text+=`
-[VALUE_BET_SPECULATIF]
-MARCHE : ${b.market_name||'??'}
-COTE : ${b.odds??'?'}
-PROBABILITÉ : ${b.probability_pct??'?'}%
-ROBUSTESSE : ${b.robustness_pct??'?'}/100
-CONFIANCE : ${b.confidence_stars??'?'}/100
-`;
+        text+=`\n[VALUE_BET_SPECULATIF]\nMARCHE : ${b.market_name||'??'}\nCOTE : ${b.odds??'?'}\nPROBABILITÉ : ${b.probability_pct??'?'}%\nROBUSTESSE : ${b.robustness_pct??'?'}/100\nCONFIANCE : ${b.confidence_stars??'?'}/100\n`;
     }
     if(currentParsed.ticket_combine){
         const b=currentParsed.ticket_combine;
-        text+=`
-[TICKET_COMBINE]
-SEL1 : ${b.comment?b.comment.split(' + ')[0]||'??':'??'}
-SEL2 : ${b.comment?b.comment.split(' + ')[1]||'??':'??'}
-COTE_TOTALE : ${b.odds??'?'}
-CONFIANCE : ${b.confidence_stars??'?'}/100
-`;
+        text+=`\n[TICKET_COMBINE]\nSEL1 : ${b.comment?b.comment.split(' + ')[0]||'??':'??'}\nSEL2 : ${b.comment?b.comment.split(' + ')[1]||'??':'??'}\nCOTE_TOTALE : ${b.odds??'?'}\nCONFIANCE : ${b.confidence_stars??'?'}/100\n`;
     }
     if(currentParsed.paris_a_bannir&&currentParsed.paris_a_bannir.length){
-        text+=`
-[PARIS_A_BANNIR]
-`;
+        text+=`\n[PARIS_A_BANNIR]\n`;
         currentParsed.paris_a_bannir.forEach(b=>{
-            text+=`BAN${b.rank_in_section} : ${b.market_name||'??'} | RAISON : ${b.reason||'Risque élevé'}
-`;
+            text+=`BAN${b.rank_in_section} : ${b.market_name||'??'} | RAISON : ${b.reason||'Risque élevé'}\n`;
         });
     }
     text+=`=== FIN FICHE ===`;
@@ -983,6 +1016,7 @@ async function publierFiche(){
     if(!currentParsed||!currentCat)return;
     const adminKey=getAdminKey();
     if(!adminKey){showToast('Saisissez la clé admin.','error');return;}
+    // Nettoyage : arrondir les pourcentages décimaux pour PostgreSQL INTEGER
     const clean=JSON.parse(JSON.stringify(currentParsed));
     ['pari_du_jour','value_bet_premium','value_bet_speculatif','ticket_combine'].forEach(k=>{
         if(clean[k]){if(clean[k].probability_pct!=null)clean[k].probability_pct=Math.round(clean[k].probability_pct);if(clean[k].robustness_pct!=null)clean[k].robustness_pct=Math.round(clean[k].robustness_pct);}
@@ -994,6 +1028,7 @@ async function publierFiche(){
     const cleanText=regenerateFiche();
     if(!cleanText){showToast('Aucune donnée à publier.','error');return;}
 
+    // Vérification quota
     const count=(existingMatches[currentCat.key]||[]).length;
     if(count>=currentCat.quota){ showToast(`Quota ${currentCat.label} atteint (${count}/${currentCat.quota}). Supprimez une fiche d'abord.`,'error'); return; }
 
@@ -1017,4 +1052,4 @@ async function publierFiche(){
 }
 </script>
 </body>
-</html>
+  </html>
