@@ -1,7 +1,7 @@
 /**
- * 🏆 PROJET MIKE EDGE - SERVER.JS (V11.17.2)
+ * 🏆 PROJET MIKE EDGE - SERVER.JS (V11.17.3)
  * -------------------------------------------------------------------
- * FIX : LEFT JOIN dans /matches/:category + log debug MCR
+ * FIX : category_override passé explicitement à savePublicationTransaction
  * -------------------------------------------------------------------
  */
 
@@ -229,7 +229,8 @@ app.post('/api/v1/import', mutationLimiter, verifyAdminKey, async (req, res) => 
             });
         }
 
-        const result = await savePublicationTransaction(parsedData, null, parsedUserId);
+        // 🔧 V11.17.3 FIX : category_override passé explicitement à database.js
+        const result = await savePublicationTransaction(parsedData, null, parsedUserId, category_override);
 
         if (!result.success) {
             return res.status(422).json(result);
@@ -260,7 +261,7 @@ app.get('/health', (req, res) => {
         success: true,
         status: 'UP',
         service: 'mike-edge-backend',
-        version: '11.17.2',
+        version: '11.17.3',
         timestamp: new Date().toISOString(),
         environment: process.env.NODE_ENV || 'development'
     });
@@ -559,7 +560,7 @@ app.use((err, req, res, next) => {
 // ==========================================
 
 const server = app.listen(PORT, () => {
-    console.log(`🟢 Serveur Mike Edge V11.17.2 connecté et démarré sur le port ${PORT}`);
+    console.log(`🟢 Serveur Mike Edge V11.17.3 connecté et démarré sur le port ${PORT}`);
 });
 
 const gracefulShutdown = async (signal) => {
