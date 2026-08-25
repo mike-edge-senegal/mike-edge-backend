@@ -1,7 +1,8 @@
 /**
- * 🏆 PROJET MIKE EDGE - SERVER.JS (V11.17.3)
+ * 🏆 PROJET MIKE EDGE - SERVER.JS (V11.17.4)
  * -------------------------------------------------------------------
- * FIX : category_override passé explicitement à savePublicationTransaction
+ * FIX : category_override passé à savePublicationTransaction
+ * FIX : Classement par IRG décroissant (ORDER BY m.irg_index DESC)
  * -------------------------------------------------------------------
  */
 
@@ -261,7 +262,7 @@ app.get('/health', (req, res) => {
         success: true,
         status: 'UP',
         service: 'mike-edge-backend',
-        version: '11.17.3',
+        version: '11.17.4',
         timestamp: new Date().toISOString(),
         environment: process.env.NODE_ENV || 'development'
     });
@@ -320,7 +321,7 @@ app.get('/api/v1/vrp/stats', readLimiter, verifyAdminKey, async (req, res) => {
     }
 });
 
-// 🔧 V11.17.2 FIX : LEFT JOIN + debug log MCR count
+// 🔧 V11.17.4 FIX : LEFT JOIN + tri par IRG décroissant
 app.get('/api/v1/matches/:category', async (req, res) => {
     const category = req.params.category.toUpperCase();
     console.log('[API] GET /matches/' + category);
@@ -338,7 +339,7 @@ app.get('/api/v1/matches/:category', async (req, res) => {
         const countRes = await pool.query('SELECT COUNT(*) as cnt FROM match_category_rankings WHERE category_name = $1', [category]);
         console.log('[API] MCR count pour', category, ':', countRes.rows[0].cnt);
         
-        // Requête avec LEFT JOIN (plus permissive que INNER JOIN)
+        // Requête avec LEFT JOIN + tri par IRG décroissant
         const query = `
             SELECT 
                 m.id, m.match_datetime, m.irg_index,
@@ -353,7 +354,7 @@ app.get('/api/v1/matches/:category', async (req, res) => {
             LEFT JOIN teams t1 ON m.home_team_id = t1.id
             LEFT JOIN teams t2 ON m.away_team_id = t2.id
             WHERE mcr.category_name = $1
-            ORDER BY mcr.rank_in_category ASC
+            ORDER BY m.irg_index DESC NULLS LAST
             LIMIT 50;
         `;
         const result = await pool.query(query, [category]);
@@ -560,7 +561,7 @@ app.use((err, req, res, next) => {
 // ==========================================
 
 const server = app.listen(PORT, () => {
-    console.log(`🟢 Serveur Mike Edge V11.17.3 connecté et démarré sur le port ${PORT}`);
+    console.log(`🟢 Serveur Mike Edge V11.17.4 connecté et démarré sur le port ${PORT}`);
 });
 
 const gracefulShutdown = async (signal) => {
