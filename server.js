@@ -1,8 +1,9 @@
 /**
- * 🏆 PROJET MIKE EDGE - SERVER.JS (V11.17.4)
+ * 🏆 PROJET MIKE EDGE - SERVER.JS (V11.17.5)
  * -------------------------------------------------------------------
  * FIX : category_override passé à savePublicationTransaction
  * FIX : Classement par IRG décroissant (ORDER BY m.irg_index DESC)
+ * FIX : CAST match_id::integer pour corriger le JOIN vide
  * -------------------------------------------------------------------
  */
 
@@ -230,7 +231,6 @@ app.post('/api/v1/import', mutationLimiter, verifyAdminKey, async (req, res) => 
             });
         }
 
-        // 🔧 V11.17.3 FIX : category_override passé explicitement à database.js
         const result = await savePublicationTransaction(parsedData, null, parsedUserId, category_override);
 
         if (!result.success) {
@@ -262,7 +262,7 @@ app.get('/health', (req, res) => {
         success: true,
         status: 'UP',
         service: 'mike-edge-backend',
-        version: '11.17.4',
+        version: '11.17.5',
         timestamp: new Date().toISOString(),
         environment: process.env.NODE_ENV || 'development'
     });
@@ -321,7 +321,7 @@ app.get('/api/v1/vrp/stats', readLimiter, verifyAdminKey, async (req, res) => {
     }
 });
 
-// 🔧 V11.17.4 FIX : LEFT JOIN + tri par IRG décroissant
+// 🔧 V11.17.5 FIX : CAST match_id::integer pour corriger le JOIN vide
 app.get('/api/v1/matches/:category', async (req, res) => {
     const category = req.params.category.toUpperCase();
     console.log('[API] GET /matches/' + category);
@@ -335,11 +335,9 @@ app.get('/api/v1/matches/:category', async (req, res) => {
         });
     }
     try {
-        // Debug : compter dans match_category_rankings seul
         const countRes = await pool.query('SELECT COUNT(*) as cnt FROM match_category_rankings WHERE category_name = $1', [category]);
         console.log('[API] MCR count pour', category, ':', countRes.rows[0].cnt);
         
-        // Requête avec LEFT JOIN + tri par IRG décroissant
         const query = `
             SELECT 
                 m.id, m.match_datetime, m.irg_index,
@@ -349,7 +347,7 @@ app.get('/api/v1/matches/:category', async (req, res) => {
                 mcr.rank_in_category,
                 COALESCE((SELECT json_agg(b) FROM bets b WHERE b.match_id = m.id), '[]'::json) as bets
             FROM match_category_rankings mcr
-            LEFT JOIN matches m ON mcr.match_id = m.id
+            LEFT JOIN matches m ON mcr.match_id::integer = m.id
             LEFT JOIN leagues l ON m.league_id = l.id
             LEFT JOIN teams t1 ON m.home_team_id = t1.id
             LEFT JOIN teams t2 ON m.away_team_id = t2.id
@@ -359,6 +357,7 @@ app.get('/api/v1/matches/:category', async (req, res) => {
         `;
         const result = await pool.query(query, [category]);
         console.log('[API] Résultats pour', category, ':', result.rows.length, 'matchs');
+        console.log('[API] Raw rows:', JSON.stringify(result.rows));
         res.json({ success: true, data: result.rows });
     } catch (err) {
         console.error('[API] 🔴 ERREUR /matches/' + category + ':', err.message);
@@ -561,7 +560,7 @@ app.use((err, req, res, next) => {
 // ==========================================
 
 const server = app.listen(PORT, () => {
-    console.log(`🟢 Serveur Mike Edge V11.17.4 connecté et démarré sur le port ${PORT}`);
+    console.log(`🟢 Serveur Mike Edge V11.17.5 connecté et démarré sur le port ${PORT}`);
 });
 
 const gracefulShutdown = async (signal) => {
