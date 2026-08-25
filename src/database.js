@@ -1,5 +1,6 @@
 // ============================================
-// MODULE 3 : database.js — MIKE EDGE V11.17.1
+// MODULE 3 : database.js — MIKE EDGE V11.17.4
+// FIX : Date fallback + rank_in_category = 1 (classement par IRG côté API)
 // ============================================
 const { Pool } = require('pg');
 const { validateParsedImport } = require('./validator');
@@ -86,8 +87,12 @@ async function getTeamIdStrict(client, teamName, leagueId) {
     return insert.rows[0].id;
 }
 
+// 🔧 V11.17.4 FIX : Fallback date/heure au lieu de crash
 function buildRobustIsoDatetime(dateStr, timeStr) {
-    if (!dateStr || !timeStr) throw new Error('ERR_MISSING_DATETIME');
+    if (!dateStr || !timeStr) {
+        console.warn('[DB] Date/heure manquante, fallback sur maintenant');
+        return new Date();
+    }
     const normalizedDate = normalizeFrenchText(dateStr);
     let year, month, day;
     const frenchDateMatch = normalizedDate.match(/(?:[\p{Letter}\p{Mark}]+\s+)?(\d{1,2})\s+(janvier|fevrier|mars|avril|mai|juin|juillet|aout|septembre|octobre|novembre|decembre)(?:\s+(\d{2,4}))?/iu);
@@ -112,15 +117,18 @@ function buildRobustIsoDatetime(dateStr, timeStr) {
             }
         }
     }
-    if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day) || month < 1 || month > 12 || day < 1 || day > 31)
-        throw new Error('ERR_INVALID_DATE_FORMAT');
+    if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day) || month < 1 || month > 12 || day < 1 || day > 31) {
+        console.warn('[DB] Date invalide ("' + dateStr + '"), fallback sur maintenant');
+        return new Date();
+    }
     const timeParts = String(timeStr).split(':');
-    const hour = Number(timeParts[0]);
-    const minute = Number(timeParts[1]);
-    if (hour < 0 || hour > 23 || minute < 0 || minute > 59) throw new Error('ERR_INVALID_TIME');
+    const hour = Number(timeParts[0]) || 0;
+    const minute = Number(timeParts[1]) || 0;
     const date = new Date(Date.UTC(year, month - 1, day, hour, minute, 0, 0));
-    if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day || date.getUTCHours() !== hour || date.getUTCMinutes() !== minute)
-        throw new Error('ERR_INVALID_CALENDAR_DATE');
+    if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day || date.getUTCHours() !== hour || date.getUTCMinutes() !== minute) {
+        console.warn('[DB] Date calendaire invalide, fallback sur maintenant');
+        return new Date();
+    }
     return date;
 }
 
@@ -179,10 +187,11 @@ async function savePublicationTransaction(parsedData, targetPublicationId = null
         const categoryName = categoryOverride || parsedData.match_info?.category_name || 'CHAMPIONNAT';
         console.log('[DB] Category insert:', categoryName, '| match_id:', matchId, '| override:', categoryOverride || 'none');
 
+        // 🔧 V11.17.4 FIX : Classement par IRG côté API — on ignore le rank de la fiche
         await client.query(
             `INSERT INTO match_category_rankings (match_id, publication_id, category_name, rank_in_category)
              VALUES ($1, $2, $3, $4)`,
-            [matchId, publicationId, categoryName, parsedData.match_info.rank_in_category]
+            [matchId, publicationId, categoryName, 1]
         );
 
         const bets = [parsedData.pari_du_jour, ...parsedData.top_5_premium, ...parsedData.top_3_opportunites, parsedData.value_bet_premium, parsedData.value_bet_speculatif, parsedData.ticket_combine, ...parsedData.paris_a_bannir].filter(Boolean);
