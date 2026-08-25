@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>🎛️ COCKPIT ADMIN — MIKE EDGE V11.16</title>
+<title>🎛️ COCKPIT ADMIN — MIKE EDGE V11.17.4</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <style>
@@ -124,7 +124,7 @@ th{background-color:rgba(212,175,55,0.1);color:var(--gold)}
 
 <div style="text-align:center;margin-bottom:16px;padding-top:10px;">
 <h1 style="font-size:20px;color:var(--gold);letter-spacing:1px;">🎛️ COCKPIT ADMIN MIKE EDGE</h1>
-<p style="font-size:11px;color:var(--text-muted);margin-top:2px;">V11.17 FIX INTEGER</p>
+<p style="font-size:11px;color:var(--text-muted);margin-top:2px;">V11.17.4</p>
 <p id="apiUrlDisplay" style="font-size:10px;color:#666;margin-top:4px;"></p>
 </div>
 
@@ -668,6 +668,7 @@ function parseTelegramTextClient(rawText){
     out.match_info.time_str=timeM?timeM[1].trim():null;
     out.match_info.league_name=leagueM?leagueM[1].trim():'Ligue Internationale';
     out.match_info.irg_index=irgM?Number(irgM[1]):80;
+    out.match_info.rank_in_category=1; // V11.17.4 : classement par IRG côté API
 
     if(out.match_info.home_team&&out.match_info.away_team&&out.match_info.league_name){
         out.publication_title=out.match_info.home_team+' vs '+out.match_info.away_team+' — '+out.match_info.league_name;
@@ -970,7 +971,7 @@ function deleteCard(secKey,idx){
 function regenerateFiche(){
     if(!currentParsed)return '';
     const m=currentParsed.match_info;
-    let text=`=== DEBUT FICHE MATCH ===\nMATCH : ${m.home_team||'??'} vs ${m.away_team||'??'}\nCOMPÉTITION : ${m.league_name||'??'}\nDATE : ${m.date_str||'??'}\nHEURE : ${m.time_str||'??'}\nCATÉGORIE : ${currentCat.key}\nRANG : 1\nIRG : ${m.irg_index??80}\n`;
+    let text=`=== DEBUT FICHE MATCH ===\nMATCH : ${m.home_team||'??'} vs ${m.away_team||'??'}\nCOMPÉTITION : ${m.league_name||'??'}\nDATE : ${m.date_str||new Date().toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'})}\nHEURE : ${m.time_str||'??'}\nCATÉGORIE : ${currentCat.key}\nRANG : 1\nIRG : ${m.irg_index??80}\n`;
 
     if(currentParsed.pari_du_jour){
         const b=currentParsed.pari_du_jour;
