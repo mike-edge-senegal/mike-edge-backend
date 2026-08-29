@@ -3,7 +3,7 @@
 // FIX : Date fallback + rank_in_category = 1 (classement par IRG côté API)
 // FIX : import_logs hors transaction principale
 // FIX : Auto-création ligue + équipe via unaccent + fallback cross-ligue
-// SESSION : Gestion automatique des sessions et quotas (5/5 - 10/10)
+// SESSION : Gestion atomique des sessions avec verrou pg_advisory_xact_lock
 // DIAGNOSTIC : TRACE CHIRURGICALE TRANSACTION
 // ============================================
 
@@ -382,6 +382,24 @@ async function savePublicationTransaction(
         );
 
         // =====================================================
+        // 🚨 TRACE 3.5 — VERROU CATÉGORIE (pg_advisory_xact_lock)
+        // =====================================================
+        const categoryName = 
+            categoryOverride ||
+            parsedData.match_info?.category_name ||
+            'CHAMPIONNAT';
+
+        await client.query(
+            `SELECT pg_advisory_xact_lock(hashtext($1))`,
+            [categoryName]
+        );
+
+        console.log(
+            '🚨 TRACE 3.5 — VERROU OBTENU POUR CATÉGORIE:',
+            categoryName
+        );
+
+        // =====================================================
         // LEAGUE
         // =====================================================
         const leagueId = await getLeagueIdStrict(
@@ -545,11 +563,6 @@ async function savePublicationTransaction(
         // =====================================================
         // CATEGORY / MCR
         // =====================================================
-        const categoryName =
-            categoryOverride ||
-            parsedData.match_info?.category_name ||
-            'CHAMPIONNAT';
-
         console.log(
             '[DB] Category insert:',
             categoryName,
@@ -565,7 +578,7 @@ async function savePublicationTransaction(
         );
 
         // =====================================================
-        // SESSION ACTIVE — récupérer ou créer
+        // SESSION ACTIVE — récupérer ou créer (sous verrou)
         // =====================================================
         const sessionRes = await client.query(
             `SELECT id FROM category_sessions 
@@ -604,6 +617,8 @@ async function savePublicationTransaction(
                 `UPDATE category_sessions SET status = 'CLOSED' WHERE id = $1`,
                 [sessionId]
             );
+            console.log('[SESSION] Session', sessionId, 'fermée (quota atteint)');
+
             // Créer une nouvelle session
             const newSession = await client.query(
                 `INSERT INTO category_sessions (category_name, session_number, status)
