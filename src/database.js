@@ -1,46 +1,64 @@
 // ============================================
 // MODULE 3 : database.js — MIKE EDGE V11.17.4
 // FIX : Date fallback + rank_in_category = 1 (classement par IRG côté API)
+// FIX : import_logs hors transaction principale
 // DIAGNOSTIC : TRACE CHIRURGICALE TRANSACTION
 // ============================================
+
 const { Pool } = require('pg');
 const { validateParsedImport } = require('./validator');
-const { PARSER_VERSION, normalizeFrenchText, REGEX_NON_DB_CHARS } = require('./parser');
+const {
+    PARSER_VERSION,
+    normalizeFrenchText,
+    REGEX_NON_DB_CHARS
+} = require('./parser');
 
 // 🔒 V11.16 FIX : Support DATABASE_URL (Render/Supabase) + SSL conditionnel
 const poolConfig = process.env.DATABASE_URL
-  ? {
-      connectionString: process.env.DATABASE_URL,
-      max: 20,
-      ssl: process.env.NODE_ENV === 'production'
-        ? { rejectUnauthorized: false }
-        : false,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 5000,
+    ? {
+        connectionString: process.env.DATABASE_URL,
+        max: 20,
+        ssl: process.env.NODE_ENV === 'production'
+            ? { rejectUnauthorized: false }
+            : false,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 5000,
     }
-  : {
-      user: process.env.DB_USER,
-      host: process.env.DB_HOST || 'localhost',
-      database: process.env.DB_NAME || 'mike_edge_db',
-      password: process.env.DB_PASSWORD,
-      port: process.env.DB_PORT || 5432,
-      max: 20,
-      ssl: process.env.NODE_ENV === 'production'
-        ? { rejectUnauthorized: false }
-        : false,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 5000,
+    : {
+        user: process.env.DB_USER,
+        host: process.env.DB_HOST || 'localhost',
+        database: process.env.DB_NAME || 'mike_edge_db',
+        password: process.env.DB_PASSWORD,
+        port: process.env.DB_PORT || 5432,
+        max: 20,
+        ssl: process.env.NODE_ENV === 'production'
+            ? { rejectUnauthorized: false }
+            : false,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 5000,
     };
 
 const pool = new Pool(poolConfig);
 
 // 🩺 V11.16 FIX : Test de connexion au boot
 pool.query('SELECT 1')
-  .then(() => console.log('[DATABASE] ✅ Connexion PostgreSQL établie — Module 3 actif'))
-  .catch((err) => {
-    console.error('[DATABASE] 🔴 ÉCHEC CONNEXION PostgreSQL :', err.message);
-    console.error('[DATABASE] Code :', err.code, '| Detail :', err.detail);
-  });
+    .then(() =>
+        console.log(
+            '[DATABASE] ✅ Connexion PostgreSQL établie — Module 3 actif'
+        )
+    )
+    .catch((err) => {
+        console.error(
+            '[DATABASE] 🔴 ÉCHEC CONNEXION PostgreSQL :',
+            err.message
+        );
+        console.error(
+            '[DATABASE] Code :',
+            err.code,
+            '| Detail:',
+            err.detail
+        );
+    });
 
 function normalizeDatabaseName(value) {
     return normalizeFrenchText(value).replace(REGEX_NON_DB_CHARS, '');
@@ -53,18 +71,37 @@ async function getLeagueIdStrict(client, leagueName) {
     const normalized = normalizeDatabaseName(leagueName);
 
     const result = await client.query(
-        `SELECT id FROM leagues WHERE LOWER(REGEXP_REPLACE(unaccent(name), '[^a-zA-Z0-9]', '', 'g')) = $1`,
+        `SELECT id
+         FROM leagues
+         WHERE LOWER(
+             REGEXP_REPLACE(
+                 unaccent(name),
+                 '[^a-zA-Z0-9]',
+                 '',
+                 'g'
+             )
+         ) = $1`,
         [normalized]
     );
 
-    if (result.rows.length > 0) return result.rows[0].id;
+    if (result.rows.length > 0) {
+        return result.rows[0].id;
+    }
 
     const insert = await client.query(
-        `INSERT INTO leagues (name) VALUES ($1) RETURNING id`,
+        `INSERT INTO leagues (name)
+         VALUES ($1)
+         RETURNING id`,
         [leagueName.trim()]
     );
 
-    console.log('[DB AUTO] Ligue creee : ' + leagueName.trim() + ' (ID:' + insert.rows[0].id + ')');
+    console.log(
+        '[DB AUTO] Ligue creee : ' +
+        leagueName.trim() +
+        ' (ID:' +
+        insert.rows[0].id +
+        ')'
+    );
 
     return insert.rows[0].id;
 }
@@ -76,25 +113,57 @@ async function getTeamIdStrict(client, teamName, leagueId) {
     const normalized = normalizeDatabaseName(teamName);
 
     let result = await client.query(
-        `SELECT id FROM teams WHERE LOWER(REGEXP_REPLACE(unaccent(name), '[^a-zA-Z0-9]', '', 'g')) = $1 AND league_id = $2`,
+        `SELECT id
+         FROM teams
+         WHERE LOWER(
+             REGEXP_REPLACE(
+                 unaccent(name),
+                 '[^a-zA-Z0-9]',
+                 '',
+                 'g'
+             )
+         ) = $1
+         AND league_id = $2`,
         [normalized, leagueId]
     );
 
-    if (result.rows.length > 0) return result.rows[0].id;
+    if (result.rows.length > 0) {
+        return result.rows[0].id;
+    }
 
     result = await client.query(
-        `SELECT id FROM teams WHERE LOWER(REGEXP_REPLACE(unaccent(name), '[^a-zA-Z0-9]', '', 'g')) = $1 LIMIT 1`,
+        `SELECT id
+         FROM teams
+         WHERE LOWER(
+             REGEXP_REPLACE(
+                 unaccent(name),
+                 '[^a-zA-Z0-9]',
+                 '',
+                 'g'
+             )
+         ) = $1
+         LIMIT 1`,
         [normalized]
     );
 
-    if (result.rows.length > 0) return result.rows[0].id;
+    if (result.rows.length > 0) {
+        return result.rows[0].id;
+    }
 
     const insert = await client.query(
-        `INSERT INTO teams (name, league_id) VALUES ($1, $2) RETURNING id`,
+        `INSERT INTO teams (name, league_id)
+         VALUES ($1, $2)
+         RETURNING id`,
         [teamName.trim(), leagueId]
     );
 
-    console.log('[DB AUTO] Equipe creee : ' + teamName.trim() + ' (ID:' + insert.rows[0].id + ')');
+    console.log(
+        '[DB AUTO] Equipe creee : ' +
+        teamName.trim() +
+        ' (ID:' +
+        insert.rows[0].id +
+        ')'
+    );
 
     return insert.rows[0].id;
 }
@@ -102,7 +171,9 @@ async function getTeamIdStrict(client, teamName, leagueId) {
 // 🔧 V11.17.4 FIX : Fallback date/heure
 function buildRobustIsoDatetime(dateStr, timeStr) {
     if (!dateStr || !timeStr) {
-        console.warn('[DB] Date/heure manquante, fallback sur maintenant');
+        console.warn(
+            '[DB] Date/heure manquante, fallback sur maintenant'
+        );
         return new Date();
     }
 
@@ -134,9 +205,11 @@ function buildRobustIsoDatetime(dateStr, timeStr) {
         month = months[frenchDateMatch[2]];
 
         year = frenchDateMatch[3]
-            ? (Number(frenchDateMatch[3]) < 100
-                ? 2000 + Number(frenchDateMatch[3])
-                : Number(frenchDateMatch[3]))
+            ? (
+                Number(frenchDateMatch[3]) < 100
+                    ? 2000 + Number(frenchDateMatch[3])
+                    : Number(frenchDateMatch[3])
+            )
             : new Date().getUTCFullYear();
 
     } else {
@@ -180,7 +253,11 @@ function buildRobustIsoDatetime(dateStr, timeStr) {
         day < 1 ||
         day > 31
     ) {
-        console.warn('[DB] Date invalide ("' + dateStr + '"), fallback sur maintenant');
+        console.warn(
+            '[DB] Date invalide ("' +
+            dateStr +
+            '"), fallback sur maintenant'
+        );
         return new Date();
     }
 
@@ -190,7 +267,15 @@ function buildRobustIsoDatetime(dateStr, timeStr) {
     const minute = Number(timeParts[1]) || 0;
 
     const date = new Date(
-        Date.UTC(year, month - 1, day, hour, minute, 0, 0)
+        Date.UTC(
+            year,
+            month - 1,
+            day,
+            hour,
+            minute,
+            0,
+            0
+        )
     );
 
     if (
@@ -200,7 +285,9 @@ function buildRobustIsoDatetime(dateStr, timeStr) {
         date.getUTCHours() !== hour ||
         date.getUTCMinutes() !== minute
     ) {
-        console.warn('[DB] Date calendaire invalide, fallback sur maintenant');
+        console.warn(
+            '[DB] Date calendaire invalide, fallback sur maintenant'
+        );
         return new Date();
     }
 
@@ -440,7 +527,8 @@ async function savePublicationTransaction(
             return {
                 success: false,
                 code: 'ERR_DUPLICATE_MATCH',
-                message: 'Ce match existe déjà pour cette publication.'
+                message:
+                    'Ce match existe déjà pour cette publication.'
             };
         }
 
@@ -537,7 +625,19 @@ async function savePublicationTransaction(
                 '🚨 TRACE 14 — AVANT IMPORT_LOG'
             );
 
-            await client.query(
+            // 🔧 FIX CRITIQUE :
+            // import_logs est volontairement écrit avec pool.query()
+            // et non client.query().
+            //
+            // Pourquoi ?
+            // client est dans la transaction BEGIN...COMMIT.
+            // Si import_logs échoue, PostgreSQL met cette transaction
+            // en état ABORTED.
+            //
+            // pool.query() utilise une autre connexion et empêche
+            // l'échec du journal d'import de casser la transaction
+            // principale publication/match/MCR/bets.
+            await pool.query(
                 `INSERT INTO import_logs (
                     user_id,
                     status,
@@ -562,6 +662,16 @@ async function savePublicationTransaction(
             console.error(
                 '⚠️ Échec log import (non bloquant):',
                 logErr.message
+            );
+
+            console.error(
+                '⚠️ Code SQL IMPORT_LOG:',
+                logErr.code
+            );
+
+            console.error(
+                '⚠️ Detail IMPORT_LOG:',
+                logErr.detail
             );
 
             // 🚨 TRACE 15B
@@ -647,7 +757,8 @@ async function savePublicationTransaction(
             return {
                 success: false,
                 code: 'ERR_DUPLICATE_MATCH',
-                message: 'Ce match existe déjà pour cette publication.'
+                message:
+                    'Ce match existe déjà pour cette publication.'
             };
         }
 
@@ -658,7 +769,8 @@ async function savePublicationTransaction(
 
         return {
             success: false,
-            code: businessCode ||
+            code:
+                businessCode ||
                 error.code ||
                 'ERR_DATABASE',
             message: error.message
