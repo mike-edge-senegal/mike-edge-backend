@@ -1,7 +1,9 @@
 // ============================================
-// MODULE 3 : database.js — MIKE EDGE V11.17.4
+// MODULE 3 : database.js — MIKE EDGE V11.17.5
 // FIX : Date fallback + rank_in_category = 1 (classement par IRG côté API)
 // FIX : import_logs hors transaction principale
+// FIX : Auto-création ligue + équipe via unaccent + fallback cross-ligue
+// SESSION : Gestion automatique des sessions et quotas (5/5 - 10/10)
 // DIAGNOSTIC : TRACE CHIRURGICALE TRANSACTION
 // ============================================
 
@@ -562,19 +564,73 @@ async function savePublicationTransaction(
             '🚨 TRACE 10 — AVANT INSERT MCR'
         );
 
+        // =====================================================
+        // SESSION ACTIVE — récupérer ou créer
+        // =====================================================
+        const sessionRes = await client.query(
+            `SELECT id FROM category_sessions 
+             WHERE category_name = $1 AND status = 'ACTIVE' 
+             LIMIT 1`,
+            [categoryName]
+        );
+
+        let sessionId;
+        if (sessionRes.rows.length === 0) {
+            const newSession = await client.query(
+                `INSERT INTO category_sessions (category_name, session_number, status)
+                 VALUES ($1, 1, 'ACTIVE')
+                 RETURNING id`,
+                [categoryName]
+            );
+            sessionId = newSession.rows[0].id;
+            console.log('[SESSION] Création session #1', categoryName, 'id:', sessionId);
+        } else {
+            sessionId = sessionRes.rows[0].id;
+            console.log('[SESSION] Session active trouvée', categoryName, 'id:', sessionId);
+        }
+
+        // Vérifier le quota de la session active
+        const countRes = await client.query(
+            `SELECT COUNT(*) as cnt FROM match_category_rankings 
+             WHERE session_id = $1`,
+            [sessionId]
+        );
+        const currentCount = parseInt(countRes.rows[0].cnt, 10);
+        const maxQuota = categoryName === 'ELITE_MONDIALE' ? 10 : 5;
+
+        if (currentCount >= maxQuota) {
+            // Fermer la session actuelle
+            await client.query(
+                `UPDATE category_sessions SET status = 'CLOSED' WHERE id = $1`,
+                [sessionId]
+            );
+            // Créer une nouvelle session
+            const newSession = await client.query(
+                `INSERT INTO category_sessions (category_name, session_number, status)
+                 VALUES ($1, (SELECT COALESCE(MAX(session_number), 0) + 1 FROM category_sessions WHERE category_name = $1), 'ACTIVE')
+                 RETURNING id`,
+                [categoryName]
+            );
+            sessionId = newSession.rows[0].id;
+            console.log('[SESSION] Nouvelle session créée pour quota plein:', sessionId);
+        }
+
+        // Insertion MCR avec session_id
         await client.query(
             `INSERT INTO match_category_rankings (
                 match_id,
                 publication_id,
                 category_name,
-                rank_in_category
+                rank_in_category,
+                session_id
             )
-            VALUES ($1, $2, $3, $4)`,
+            VALUES ($1, $2, $3, $4, $5)`,
             [
                 matchId,
                 publicationId,
                 categoryName,
-                1
+                1,
+                sessionId
             ]
         );
 
