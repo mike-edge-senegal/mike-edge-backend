@@ -115,6 +115,22 @@ th{background-color:rgba(212,175,55,0.1);color:var(--gold)}
 .pronos-alert.warn{ background:rgba(255,140,0,0.15); color:#FF8C00; border:1px solid #FF8C00 }
 .pronos-alert.err{ background:rgba(224,17,95,0.15); color:var(--alert-red); border:1px solid var(--alert-red) }
 .pronos-alert.info{ background:rgba(80,200,120,0.1); color:var(--emerald-success); border:1px solid var(--emerald-success) }
+
+/* ---------- KIOSQUE MAGAZINE HD (Claude) ---------- */
+.kiosk-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.kiosk-card{background:var(--bg-card);border:1px solid var(--border-gold);border-radius:14px;overflow:hidden;cursor:pointer}
+.kiosk-cover{width:100%;aspect-ratio:9/16;object-fit:cover;background:var(--bg-elevated)}
+.kiosk-info{padding:10px}
+.kiosk-title{font-size:12px;font-weight:800;color:var(--text-primary);margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kiosk-date{font-size:10px;color:var(--text-muted);margin-bottom:4px}
+.kiosk-count{font-size:11px;font-weight:700;color:var(--gold-bright)}
+.kiosk-empty-slot{border:2px dashed var(--border-gold);border-radius:14px;aspect-ratio:9/16;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:24px}
+.kiosk-page-row{display:flex;align-items:center;gap:10px;background:var(--bg-elevated);border:1px solid var(--border-gold);border-radius:10px;padding:8px;margin-bottom:8px}
+.kiosk-page-row img{width:48px;height:85px;object-fit:cover;border-radius:6px}
+.kiosk-page-num{font-size:11px;color:var(--gold);font-weight:700;min-width:36px}
+.kiosk-page-del{margin-left:auto;background:rgba(224,17,95,0.15);color:var(--alert-red);border:1px solid var(--alert-red);border-radius:8px;padding:8px 12px;font-size:12px;font-weight:700}
+.kiosk-detail-header{display:flex;gap:12px;margin-bottom:16px;align-items:flex-start}
+.kiosk-detail-cover{width:70px;height:124px;object-fit:cover;border-radius:8px;border:1px solid var(--border-gold)}
 </style>
 </head>
 <body>
@@ -160,18 +176,68 @@ th{background-color:rgba(212,175,55,0.1);color:var(--gold)}
 </div>
 
 
-<div class="card">
+<!-- ========================================================== -->
+<!-- KIOSQUE MAGAZINE HD — NOUVEAU BLOC (Claude)                -->
+<!-- ========================================================== -->
+<div class="card" id="kioskCard">
 <div class="card-title"><span>2. KIOSQUE MAGAZINE HD</span></div>
-<label class="label">Titre :</label><input type="text" id="magTitle" placeholder="Ex: Édition Spéciale">
-<label class="label">Date :</label><input type="date" id="magDate">
-<label class="label">Couverture :</label><input type="file" id="magCover" accept="image/*" style="padding:8px;color:var(--text-muted);">
-<label class="label">Pages HD (9:16) :</label><input type="file" id="magPages" accept="image/*" multiple style="padding:8px;color:var(--text-muted);" onchange="handlePagesSelect(this)">
-<div id="pageQueueContainer" style="display:none;margin-bottom:12px;">
-<span class="label" id="pageQueueCount">0 page(s)</span>
-<div id="pageQueueGrid" class="page-queue-grid"></div>
+
+<!-- VUE LISTE -->
+<div id="kioskList">
+  <div class="kiosk-grid" id="kioskGrid"></div>
+  <button class="btn btn-gold" id="kioskNewBtn" onclick="showKioskCreate()">➕ NOUVEL ALBUM</button>
 </div>
-<button class="btn btn-gold" id="saveMagBtn" onclick="saveMagazine()">💾 ENREGISTRER L'ALBUM</button>
+
+<!-- VUE CRÉATION -->
+<div id="kioskCreate" style="display:none">
+  <div class="saisie-header" style="border:none;padding-bottom:0">
+    <button class="saisie-back" onclick="showKioskList()">← Retour</button>
+    <span class="saisie-title">NOUVEL ALBUM</span>
+    <span></span>
+  </div>
+  <label class="label">Titre :</label><input type="text" id="kioskNewTitle" placeholder="Ex: Édition Spéciale">
+  <label class="label">Date :</label><input type="date" id="kioskNewDate">
+  <label class="label">Couverture :</label><input type="file" id="kioskNewCover" accept="image/*" style="padding:8px;color:var(--text-muted);">
+  <button class="btn btn-gold" onclick="createAlbum()">✅ CRÉER L'ALBUM</button>
 </div>
+
+<!-- VUE DÉTAIL -->
+<div id="kioskDetail" style="display:none">
+  <div class="saisie-header" style="border:none;padding-bottom:0">
+    <button class="saisie-back" onclick="showKioskList()">← Retour</button>
+    <span class="saisie-title" id="kioskDetailCounter">0/10</span>
+  </div>
+  <div class="kiosk-detail-header">
+    <img id="kioskDetailCover" class="kiosk-detail-cover" src="">
+    <div>
+      <div class="kiosk-title" id="kioskDetailTitle" style="font-size:15px"></div>
+      <div class="kiosk-date" id="kioskDetailDate"></div>
+      <button class="saisie-back" style="padding:4px 0" onclick="showKioskEdit()">✏️ Modifier infos</button>
+    </div>
+  </div>
+
+  <div id="kioskEditForm" style="display:none;margin-bottom:14px">
+    <label class="label">Titre :</label><input type="text" id="kioskEditTitle">
+    <label class="label">Date :</label><input type="date" id="kioskEditDate">
+    <button class="btn btn-gold" onclick="saveKioskEdit()">💾 Enregistrer</button>
+  </div>
+
+  <label class="label">Pages :</label>
+  <div id="kioskPagesList"></div>
+
+  <label class="label" style="margin-top:12px">Ajouter des pages HD (9:16) :</label>
+  <input type="file" id="kioskAddPages" accept="image/*" multiple style="padding:8px;color:var(--text-muted);" onchange="handleAddPagesSelect(this)">
+  <div id="kioskAddQueueContainer" style="display:none;margin-bottom:12px">
+    <span class="label" id="kioskAddQueueCount">0 page(s)</span>
+    <div id="kioskAddQueueGrid" class="page-queue-grid"></div>
+    <button class="btn btn-gold" onclick="uploadNewPages()">📤 ENVOYER CES PAGES</button>
+  </div>
+
+  <button class="kiosk-page-del" id="kioskDeleteAlbumBtn" style="width:100%;margin-top:16px" onclick="deleteAlbumStep()">🗑 Supprimer cet album entier</button>
+</div>
+
+</div>
+
 
 <div class="card">
 <div class="card-title"><span>3. INFO FLASH HD</span></div>
@@ -324,6 +390,9 @@ window.addEventListener('DOMContentLoaded', function(){
     if(savedKey){ document.getElementById('adminKeyInput').value = savedKey; }
     var savedFiche = localStorage.getItem('mike_fiche_draft');
     if(savedFiche){ document.getElementById('ficheInput').value = savedFiche; }
+    
+    // 🔧 AJOUT : Charger la liste des magazines au démarrage
+    loadKioskList();
 });
 function saveAdminKeyLocal(){ var k = document.getElementById('adminKeyInput').value.trim(); if(k) localStorage.setItem('mike_admin_key', k); }
 function saveFicheDraft(){ var t = document.getElementById('ficheInput').value; localStorage.setItem('mike_fiche_draft', t); }
@@ -367,88 +436,256 @@ async function publishSector(){
 }
 
 // ============================================
-// KIOSQUE MAGAZINE — AVEC COMPRESSION AUTO
+// KIOSQUE MAGAZINE HD — NOUVEAU CODE (Claude)
 // ============================================
-async function handlePagesSelect(input){
-    var files=Array.from(input.files);if(!files.length)return;
-    
-    // Validation rapide
-    for(var i=0;i<files.length;i++){var e=validateImageFile(files[i]);if(e){showToast(e);input.value='';return}}
-    
-    setLoading(true,'COMPRESSION ' + files.length + ' PAGE(S)...');
-    
-    for(var i=0;i<files.length;i++){
-        try{
-            var compressed=await compressImage(files[i],{maxWidth:1080,quality:0.8});
-            selectedPages.push(compressed);
-        }catch(err){
-            console.warn('[COMPRESS] Échec page '+(i+1)+', fallback original');
-            selectedPages.push(files[i]);
-        }
-    }
-    
-    renderPageQueue();input.value='';setLoading(false);
+var kioskAlbums=[];
+var kioskCurrentId=null;
+var kioskAddSelectedPages=[];
+var kioskAddPageObjectUrls=[];
+var kioskDeleteArmed=false;
+
+async function loadKioskList(){
+    try{
+        var adminKey=getAdminKey();
+        var r=await fetch(API_BASE+'/admin/magazines',{method:'GET',headers:{'x-admin-key':adminKey}});
+        var j=await r.json();
+        if(!j.success)throw new Error('Chargement échoué');
+        kioskAlbums=j.data;
+        renderKioskGrid();
+    }catch(e){showToast("Erreur chargement kiosque: "+e.message)}
 }
 
-function renderPageQueue(){
-    var c=document.getElementById('pageQueueContainer'),g=document.getElementById('pageQueueGrid');
-    pageObjectUrls.forEach(function(u){URL.revokeObjectURL(u)});pageObjectUrls=[];
-    if(!selectedPages.length){c.style.display='none';return}
-    c.style.display='block';document.getElementById('pageQueueCount').textContent=selectedPages.length+' page(s)';g.innerHTML='';
-    selectedPages.forEach(function(file,idx){
+function renderKioskGrid(){
+    var g=document.getElementById('kioskGrid');
+    g.innerHTML='';
+    kioskAlbums.forEach(function(m){
+        var card=document.createElement('div');
+        card.className='kiosk-card';
+        card.onclick=function(){openKioskDetail(m.id)};
+        card.innerHTML=
+            '<img class="kiosk-cover" src="'+(m.cover_url||'')+'">'+
+            '<div class="kiosk-info">'+
+            '<div class="kiosk-title">'+m.title+'</div>'+
+            '<div class="kiosk-date">'+m.edition_date+'</div>'+
+            '<div class="kiosk-count">'+m.page_count+'/10 pages</div>'+
+            '</div>';
+        g.appendChild(card);
+    });
+    var newBtn=document.getElementById('kioskNewBtn');
+    if(kioskAlbums.length>=6){
+        newBtn.disabled=true;
+        newBtn.textContent='🔒 LIMITE ATTEINTE (6/6) — Supprimez un album';
+    }else{
+        newBtn.disabled=false;
+        newBtn.textContent='➕ NOUVEL ALBUM';
+    }
+}
+
+function showKioskList(){
+    document.getElementById('kioskList').style.display='block';
+    document.getElementById('kioskCreate').style.display='none';
+    document.getElementById('kioskDetail').style.display='none';
+    loadKioskList();
+}
+
+function showKioskCreate(){
+    if(kioskAlbums.length>=6){showToast("Limite de 6 albums atteinte.");return}
+    document.getElementById('kioskList').style.display='none';
+    document.getElementById('kioskCreate').style.display='block';
+    document.getElementById('kioskNewTitle').value='';
+    document.getElementById('kioskNewDate').value='';
+    document.getElementById('kioskNewCover').value='';
+}
+
+async function createAlbum(){
+    var title=document.getElementById('kioskNewTitle').value.trim();
+    var date=document.getElementById('kioskNewDate').value;
+    var cover=document.getElementById('kioskNewCover').files[0];
+    if(!title||!date){showToast("Titre et date requis.");return}
+    if(!cover){showToast("Couverture requise.");return}
+    var errC=validateImageFile(cover);if(errC){showToast(errC);return}
+
+    setLoading(true,'CRÉATION ALBUM...');
+    try{
+        var compressedCover=await compressImage(cover,{maxWidth:1080,quality:0.8});
+        var fn='covers/'+Date.now()+'_'+compressedCover.name;
+        await supabaseClient.storage.from('magazines').upload(fn,compressedCover);
+        var d=supabaseClient.storage.from('magazines').getPublicUrl(fn);
+
+        var mag=await supabaseClient.from('magazines').insert([{title:title,edition_date:date,cover_url:d.data.publicUrl,is_active:true}]).select('id').single();
+        if(mag.error||!mag.data)throw new Error(mag.error?.message||"Échec création");
+
+        showToast("✅ Album créé, ajoutez des pages !",'success');
+        openKioskDetail(mag.data.id);
+    }catch(e){showToast("Erreur: "+e.message)}finally{setLoading(false)}
+}
+
+async function openKioskDetail(id){
+    kioskCurrentId=id;
+    document.getElementById('kioskList').style.display='none';
+    document.getElementById('kioskCreate').style.display='none';
+    document.getElementById('kioskDetail').style.display='block';
+    document.getElementById('kioskEditForm').style.display='none';
+    kioskAddSelectedPages=[];renderKioskAddQueue();
+    await loadKioskDetail();
+}
+
+async function loadKioskDetail(){
+    var mag=kioskAlbums.find(function(m){return m.id===kioskCurrentId});
+    if(!mag){showToast("Album introuvable.");showKioskList();return}
+    document.getElementById('kioskDetailCover').src=mag.cover_url||'';
+    document.getElementById('kioskDetailTitle').textContent=mag.title;
+    document.getElementById('kioskDetailDate').textContent=mag.edition_date;
+
+    try{
+        var r=await fetch(API_BASE+'/magazines/'+kioskCurrentId+'/pages',{method:'GET'});
+        var j=await r.json();
+        var pages=j.success?j.data:[];
+        document.getElementById('kioskDetailCounter').textContent=pages.length+'/10';
+        var list=document.getElementById('kioskPagesList');
+        list.innerHTML='';
+        pages.forEach(function(p){
+            var row=document.createElement('div');
+            row.className='kiosk-page-row';
+            row.innerHTML=
+                '<span class="kiosk-page-num">P.'+p.page_number+'</span>'+
+                '<img src="'+p.image_url+'">'+
+                '<button class="kiosk-page-del" data-page="'+p.page_number+'">🗑</button>';
+            row.querySelector('button').onclick=function(){deleteKioskPage(p.page_number)};
+            list.appendChild(row);
+        });
+        mag.page_count=pages.length;
+    }catch(e){showToast("Erreur chargement pages: "+e.message)}
+}
+
+async function deleteKioskPage(pageNumber){
+    if(!confirm("Supprimer la page "+pageNumber+" ?"))return;
+    setLoading(true,'SUPPRESSION...');
+    try{
+        var adminKey=getAdminKey();
+        var pageRow=await supabaseClient.from('magazine_pages').select('id,image_url').eq('magazine_id',kioskCurrentId).eq('page_number',pageNumber).single();
+        if(pageRow.error||!pageRow.data)throw new Error("Page introuvable");
+
+        var r=await fetch(API_BASE+'/magazines/pages/'+pageRow.data.id,{method:'DELETE',headers:{'x-admin-key':adminKey}});
+        var j=await r.json();
+        if(!j.success)throw new Error(j.code||"Échec suppression");
+
+        var path=j.deleted_url.split('/magazines/')[1];
+        if(path)await supabaseClient.storage.from('magazines').remove([path]);
+
+        showToast("🗑 Page supprimée",'success');
+        await loadKioskDetail();
+    }catch(e){showToast("Erreur: "+e.message)}finally{setLoading(false)}
+}
+
+function handleAddPagesSelect(input){
+    var files=Array.from(input.files||[]);
+    if(!files.length)return;
+    var mag=kioskAlbums.find(function(m){return m.id===kioskCurrentId});
+    var currentCount=mag?mag.page_count:0;
+    if(currentCount+kioskAddSelectedPages.length+files.length>10){
+        showToast("❌ Dépassement : "+(currentCount+kioskAddSelectedPages.length+files.length)+"/10 pages max.");
+        input.value='';return;
+    }
+    for(var i=0;i<files.length;i++){
+        var err=validateImageFile(files[i]);
+        if(err){showToast(err);continue}
+        kioskAddSelectedPages.push(files[i]);
+    }
+    renderKioskAddQueue();input.value='';
+}
+
+function renderKioskAddQueue(){
+    var c=document.getElementById('kioskAddQueueContainer'),g=document.getElementById('kioskAddQueueGrid');
+    kioskAddPageObjectUrls.forEach(function(u){URL.revokeObjectURL(u)});kioskAddPageObjectUrls=[];
+    if(!kioskAddSelectedPages.length){c.style.display='none';return}
+    c.style.display='block';
+    document.getElementById('kioskAddQueueCount').textContent=kioskAddSelectedPages.length+' page(s) prête(s)';
+    g.innerHTML='';
+    kioskAddSelectedPages.forEach(function(file,idx){
         var thumb=document.createElement('div');thumb.className='page-thumb';
-        var img=document.createElement('img');var url=URL.createObjectURL(file);pageObjectUrls.push(url);img.src=url;
-        var badge=document.createElement('div');badge.className='page-thumb-num';badge.textContent='P.'+(idx+1);
-        var rm=document.createElement('button');rm.className='page-thumb-remove';rm.textContent='✕';rm.onclick=function(){selectedPages.splice(idx,1);renderPageQueue()};
-        thumb.appendChild(img);thumb.appendChild(badge);thumb.appendChild(rm);g.appendChild(thumb);
+        var img=document.createElement('img');var url=URL.createObjectURL(file);kioskAddPageObjectUrls.push(url);img.src=url;
+        var rm=document.createElement('button');rm.className='page-thumb-remove';rm.textContent='✕';
+        rm.onclick=function(){kioskAddSelectedPages.splice(idx,1);renderKioskAddQueue()};
+        thumb.appendChild(img);thumb.appendChild(rm);g.appendChild(thumb);
     });
 }
 
-async function saveMagazine(){
-    var title=document.getElementById('magTitle').value.trim(),date=document.getElementById('magDate').value,cover=document.getElementById('magCover').files[0],adminKey;
-    try{adminKey=getAdminKey()}catch(e){showToast(e.message);return}
-    if(!title||!date){showToast("Titre et date requis.");return}
-    if(!selectedPages.length){showToast("Ajoutez des pages.");return}
-    
-    // Validation cover
-    if(cover){var e=validateImageFile(cover);if(e){showToast(e);return}}
-    
-    setLoading(true,'COMPRESSION & UPLOAD...');
-    
+async function uploadNewPages(){
+    if(!kioskAddSelectedPages.length)return;
+    setLoading(true,'COMPRESSION & ENVOI...');
     try{
-        var coverUrl='';
-        
-        // Compression auto de la couverture
-        if(cover){
-            try{
-                var compressedCover=await compressImage(cover,{maxWidth:1080,quality:0.8});
-                cover=compressedCover;
-            }catch(err){console.warn('[COMPRESS] Cover fallback original');}
-            var fn='covers/'+Date.now()+'_'+cover.name;
-            await supabaseClient.storage.from('magazines').upload(fn,cover);
-            var d=supabaseClient.storage.from('magazines').getPublicUrl(fn);
-            coverUrl=d.data.publicUrl;
-        }
-        
-        var mag=await supabaseClient.from('magazines').insert([{title:title,edition_date:date,cover_url:coverUrl,is_active:true}]).select('id').single();
-        if(mag.error||!mag.data)throw new Error(mag.error?.message||"Échec");
-        
-        // Pages déjà compressées dans handlePagesSelect
-        for(var i=0;i<selectedPages.length;i++){
-            var f=selectedPages[i];
-            var pn='pages/'+mag.data.id+'/'+Date.now()+'_p'+(i+1)+'_'+f.name;
+        var mag=kioskAlbums.find(function(m){return m.id===kioskCurrentId});
+        var startNum=(mag?mag.page_count:0)+1;
+        for(var i=0;i<kioskAddSelectedPages.length;i++){
+            var f=await compressImage(kioskAddSelectedPages[i],{maxWidth:1080,quality:0.8}).catch(function(){return kioskAddSelectedPages[i]});
+            var pn='pages/'+kioskCurrentId+'/'+Date.now()+'_p'+(startNum+i)+'_'+f.name;
             await supabaseClient.storage.from('magazines').upload(pn,f);
             var pd=supabaseClient.storage.from('magazines').getPublicUrl(pn);
-            await supabaseClient.from('magazine_pages').insert([{magazine_id:mag.data.id,page_number:i+1,image_url:pd.data.publicUrl}]);
+            await supabaseClient.from('magazine_pages').insert([{magazine_id:kioskCurrentId,page_number:startNum+i,image_url:pd.data.publicUrl}]);
         }
-        
-        showToast("💾 Album enregistré !",'success');
-        selectedPages=[];renderPageQueue();
-        document.getElementById('magTitle').value='';
-        document.getElementById('magDate').value='';
-        document.getElementById('magCover').value='';
+        showToast("📤 Pages ajoutées !",'success');
+        kioskAddSelectedPages=[];renderKioskAddQueue();
+        await loadKioskDetail();
     }catch(e){showToast("Erreur: "+e.message)}finally{setLoading(false)}
 }
+
+function showKioskEdit(){
+    var mag=kioskAlbums.find(function(m){return m.id===kioskCurrentId});
+    if(!mag)return;
+    document.getElementById('kioskEditTitle').value=mag.title;
+    document.getElementById('kioskEditDate').value=mag.edition_date;
+    document.getElementById('kioskEditForm').style.display='block';
+}
+
+async function saveKioskEdit(){
+    var title=document.getElementById('kioskEditTitle').value.trim();
+    var date=document.getElementById('kioskEditDate').value;
+    if(!title||!date){showToast("Titre et date requis.");return}
+    setLoading(true,'ENREGISTREMENT...');
+    try{
+        var adminKey=getAdminKey();
+        var r=await fetch(API_BASE+'/magazines/'+kioskCurrentId,{method:'PUT',headers:{'Content-Type':'application/json','x-admin-key':adminKey},body:JSON.stringify({title:title,edition_date:date})});
+        var j=await r.json();
+        if(!j.success)throw new Error("Échec enregistrement");
+        showToast("💾 Infos mises à jour",'success');
+        document.getElementById('kioskEditForm').style.display='none';
+        await loadKioskList();await loadKioskDetail();
+    }catch(e){showToast("Erreur: "+e.message)}finally{setLoading(false)}
+}
+
+function deleteAlbumStep(){
+    var btn=document.getElementById('kioskDeleteAlbumBtn');
+    if(!kioskDeleteArmed){
+        kioskDeleteArmed=true;
+        btn.textContent='⚠️ CONFIRMER LA SUPPRESSION ?';
+        setTimeout(function(){kioskDeleteArmed=false;btn.textContent='🗑 Supprimer cet album entier'},4000);
+        return;
+    }
+    kioskDeleteArmed=false;
+    deleteAlbumConfirmed();
+}
+
+async function deleteAlbumConfirmed(){
+    setLoading(true,'SUPPRESSION ALBUM...');
+    try{
+        var adminKey=getAdminKey();
+        var r=await fetch(API_BASE+'/magazines/'+kioskCurrentId,{method:'DELETE',headers:{'x-admin-key':adminKey}});
+        var j=await r.json();
+        if(!j.success)throw new Error("Échec suppression");
+
+        for(var i=0;i<j.urls_to_clean.length;i++){
+            var path=j.urls_to_clean[i].split('/magazines/')[1];
+            if(path)await supabaseClient.storage.from('magazines').remove([path]);
+        }
+        showToast("🗑 Album supprimé",'success');
+        showKioskList();
+    }catch(e){showToast("Erreur: "+e.message)}finally{setLoading(false)}
+}
+
+// ============================================
+// FIN KIOSQUE MAGAZINE HD
+// ============================================
 
 async function toggleFlashStatus(){
     var adminKey;try{adminKey=getAdminKey()}catch(e){showToast(e.message);return}
