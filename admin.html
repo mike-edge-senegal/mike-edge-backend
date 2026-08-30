@@ -758,29 +758,6 @@ function parseTelegramTextClient(rawText){
 // Variable globale pour stocker les sessions actives
 var activeSessions = {};
 
-// 🔧 Récupérer les sessions actives depuis le backend
-async function loadActiveSessions() {
-    try {
-        const response = await fetch(API_BASE + '/sessions/active', {
-            method: 'GET',
-            headers: { 'Accept': 'application/json' }
-        });
-        if (response.ok) {
-            const data = await response.json();
-            if (data.success && data.data) {
-                activeSessions = data.data;
-                console.log('[SESSIONS] Sessions actives chargées:', activeSessions);
-                return true;
-            }
-        }
-        console.warn('[SESSIONS] Impossible de charger les sessions actives, utilisation du fallback');
-        return false;
-    } catch (err) {
-        console.warn('[SESSIONS] Erreur chargement sessions:', err.message);
-        return false;
-    }
-}
-
 // ╔══════════════════════════════════════════════════════════════════════╗
 // ║  LOGIQUE UI — DASHBOARD · SAISIE · PREVIEW · ÉDITION · PUBLICATION  ║
 // ╚══════════════════════════════════════════════════════════════════════╝
@@ -800,7 +777,7 @@ let existingMatches={};
 
 window.addEventListener('DOMContentLoaded', async function(){
     // Charger les sessions actives en premier
-    await loadActiveSessions();
+    // loadActiveSessions() supprimée - maintenant gérée via /matches/:category
     await loadDashboard();
     
     var btn=document.getElementById('testKeyBtn');
@@ -840,13 +817,27 @@ window.addEventListener('DOMContentLoaded', async function(){
 async function loadDashboard(){
     document.getElementById('pronosGlobalStatus').textContent='⏳ Sync...';
     
-    // Recharger les sessions actives
-    await loadActiveSessions();
-    
-    const promises=CATEGORIES.map(c=>fetch(API_BASE+'/matches/'+c.key,{headers:{'Accept':'application/json'}}).then(r=>r.ok?r.json():{success:false,data:[]}).catch(()=>({success:false,data:[]})));
+    const promises=CATEGORIES.map(c=>fetch(API_BASE+'/matches/'+c.key,{headers:{'Accept':'application/json'}}).then(r=>r.ok?r.json():{success:false,data:[],session:null}).catch(()=>({success:false,data:[],session:null})));
     const results=await Promise.all(promises);
+    
     results.forEach((res,i)=>{ 
         existingMatches[CATEGORIES[i].key]=(res.success&&Array.isArray(res.data))?res.data:[]; 
+        // 🔧 Utiliser res.session directement depuis /matches/:category
+        if (res.session) {
+            activeSessions[CATEGORIES[i].key] = res.session;
+            console.log('[DASHBOARD] Session chargée pour', CATEGORIES[i].key, ':', res.session);
+        } else {
+            // Fallback si le backend ne renvoie pas session (version non corrigée)
+            activeSessions[CATEGORIES[i].key] = { 
+                id: null, 
+                number: null, 
+                status: 'UNKNOWN', 
+                current_count: 0, 
+                max_quota: CATEGORIES[i].key === 'ELITE_MONDIALE' ? 10 : 5, 
+                remaining_slots: CATEGORIES[i].key === 'ELITE_MONDIALE' ? 10 : 5, 
+                can_import: true 
+            };
+        }
     });
     renderDashboard();
     document.getElementById('pronosGlobalStatus').textContent='✅ Sync';
@@ -858,9 +849,10 @@ function renderDashboard(){
     CATEGORIES.forEach(cat=>{
         // 🔧 SESSION ACTIVE : récupérer le compteur depuis activeSessions
         const sessionData = activeSessions[cat.key] || {};
-        const activeCount = sessionData.count || 0;
-        const sessionNumber = sessionData.session_number || '?';
+        const activeCount = sessionData.current_count || 0;
+        const sessionNumber = sessionData.number || '?';
         const isActiveFull = activeCount >= cat.quota;
+        const canImport = sessionData.can_import !== false;
         
         // 🔧 Historique conservé pour l'affichage des matchs
         const matches = existingMatches[cat.key] || [];
@@ -911,7 +903,7 @@ function openSaisie(cat){
     
     // 🔧 Utiliser le compteur de la session active
     const sessionData = activeSessions[cat.key] || {};
-    const activeCount = sessionData.count || 0;
+    const activeCount = sessionData.current_count || 0;
     document.getElementById('saisieCatCounter').textContent=activeCount+'/'+cat.quota;
     
     document.getElementById('ficheInput').value='';
@@ -1127,8 +1119,7 @@ async function publierFiche(){
             currentParsed=null;
             
             // 🔧 CRITIQUE : Recharger l'état depuis le backend après succès
-            // On recharge les sessions actives ET le dashboard
-            await loadActiveSessions();
+            // On recharge le dashboard qui récupère res.session depuis /matches/:category
             await loadDashboard();
         }else{
             const msg=j.message||j.code||JSON.stringify(j.errors||j);
