@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>🎛️ COCKPIT ADMIN — MIKE EDGE V11.16</title>
+<title>🎛️ COCKPIT ADMIN — MIKE EDGE V11.17.5</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <style>
@@ -818,7 +818,9 @@ function renderDashboard(){
     grid.innerHTML='';
     CATEGORIES.forEach(cat=>{
         const matches=existingMatches[cat.key]||[];
-        const count=matches.length;
+        // Comptage basé sur la session active uniquement
+        const activeCount = matches.length; // TODO: appeler /sessions/active pour le vrai compteur
+        const count = activeCount;
         const pct=Math.min(100,(count/cat.quota)*100);
         const isFull=count>=cat.quota;
         const badgeClass=isFull?'full':(count>0?'ok':'warn');
@@ -830,7 +832,7 @@ function renderDashboard(){
         const card=document.createElement('div');
         card.className='cat-card';
         card.style.borderLeft=`3px solid ${cat.color}`;
-        card.innerHTML=`<div class="cat-card-header"><span class="cat-title">${cat.label}</span><span class="cat-badge ${badgeClass}">${badgeText}</span></div><div class="cat-bar-bg"><div class="cat-bar-fill" style="width:${pct}%;background:${cat.color}"></div></div><div class="cat-sub">${isFull?'Quota atteint — supprimez pour ajouter':(cat.quota-count)+' place(s) libre(s)'}</div><div class="cat-irg-list">${irgHtml}</div>`;
+        card.innerHTML=`<div class="cat-card-header"><span class="cat-title">${cat.label}</span><span class="cat-badge ${badgeClass}">${badgeText}</span></div><div class="cat-bar-bg"><div class="cat-bar-fill" style="width:${pct}%;background:${cat.color}"></div></div><div class="cat-sub">${isFull?'Quota atteint':(cat.quota-count)+' place(s) libre(s)'}</div><div class="cat-irg-list">${irgHtml}</div>`;
         card.onclick=()=>openSaisie(cat);
         grid.appendChild(card);
     });
@@ -1029,6 +1031,7 @@ async function publierFiche(){
     if(!currentParsed||!currentCat)return;
     const adminKey=getAdminKey();
     if(!adminKey){showToast('Saisissez la clé admin.','error');return;}
+
     // Nettoyage : arrondir les pourcentages décimaux pour PostgreSQL INTEGER
     const clean=JSON.parse(JSON.stringify(currentParsed));
     ['pari_du_jour','value_bet_premium','value_bet_speculatif','ticket_combine'].forEach(k=>{
@@ -1041,9 +1044,9 @@ async function publierFiche(){
     const cleanText=regenerateFiche();
     if(!cleanText){showToast('Aucune donnée à publier.','error');return;}
 
-    // Vérification quota
-    const count=(existingMatches[currentCat.key]||[]).length;
-    if(count>=currentCat.quota){ showToast(`Quota ${currentCat.label} atteint (${count}/${currentCat.quota}). Supprimez une fiche d'abord.`,'error'); return; }
+    // 🔧 SUPPRESSION DU BLOCAGE FRONTEND
+    // Le quota est maintenant géré uniquement par le backend (database.js)
+    // Le frontend envoie toujours la fiche, le backend décide de la rotation
 
     setLoading(true,'PUBLICATION...');
     try{
@@ -1065,4 +1068,4 @@ async function publierFiche(){
 }
 </script>
 </body>
-                                                                                                       </html>
+                                                </html>
