@@ -4,6 +4,7 @@
  * FIX : category_override passé à savePublicationTransaction
  * FIX : Classement par IRG décroissant (ORDER BY m.irg_index DESC)
  * FIX : CAST match_id::integer pour corriger le JOIN vide
+ * FIX : GET /api/v1/matches/:category renvoie désormais les infos de session active
  * -------------------------------------------------------------------
  */
 
@@ -321,7 +322,9 @@ app.get('/api/v1/vrp/stats', readLimiter, verifyAdminKey, async (req, res) => {
     }
 });
 
-// 🔧 V11.17.5 FIX : CAST match_id::integer pour corriger le JOIN vide
+// ==========================================
+// 🔧 V11.17.5 FIX : CAST match_id::integer + SESSION ACTIVE
+// ==========================================
 app.get('/api/v1/matches/:category', async (req, res) => {
     const category = req.params.category.toUpperCase();
     console.log('[API] GET /matches/' + category);
@@ -334,10 +337,67 @@ app.get('/api/v1/matches/:category', async (req, res) => {
             message: `Catégorie invalide. Choix autorisés : ${ALLOWED_CATEGORIES.join(', ')}` 
         });
     }
+    
     try {
-        const countRes = await pool.query('SELECT COUNT(*) as cnt FROM match_category_rankings WHERE category_name = $1', [category]);
-        console.log('[API] MCR count pour', category, ':', countRes.rows[0].cnt);
+        // =============================================
+        // 1. RÉCUPÉRER LA SESSION ACTIVE
+        // =============================================
+        const sessionQuery = `
+            SELECT 
+                id, 
+                session_number,
+                status
+            FROM category_sessions
+            WHERE category_name = $1
+              AND status = 'ACTIVE'
+            ORDER BY session_number DESC
+            LIMIT 1
+        `;
+        const sessionResult = await pool.query(sessionQuery, [category]);
         
+        let session = null;
+        let activeCount = 0;
+        const maxQuota = category === 'ELITE_MONDIALE' ? 10 : 5;
+        
+        if (sessionResult.rows.length > 0) {
+            const sessionRow = sessionResult.rows[0];
+            
+            // Compter les matchs dans cette session
+            const countQuery = `
+                SELECT COUNT(*) as cnt
+                FROM match_category_rankings
+                WHERE session_id = $1
+            `;
+            const countResult = await pool.query(countQuery, [sessionRow.id]);
+            activeCount = parseInt(countResult.rows[0].cnt, 10);
+            
+            session = {
+                id: sessionRow.id,
+                number: sessionRow.session_number,
+                status: sessionRow.status,
+                current_count: activeCount,
+                max_quota: maxQuota,
+                remaining_slots: Math.max(0, maxQuota - activeCount),
+                can_import: activeCount < maxQuota
+            };
+        } else {
+            // Aucune session active → import autorisé
+            session = {
+                id: null,
+                number: null,
+                status: 'NONE',
+                current_count: 0,
+                max_quota: maxQuota,
+                remaining_slots: maxQuota,
+                can_import: true
+            };
+        }
+        
+        console.log('[API] Session active pour', category, ':', session);
+        
+        // =============================================
+        // 2. RÉCUPÉRER LES MATCHS HISTORIQUES
+        // =============================================
         const query = `
             SELECT 
                 m.id, m.match_datetime, m.irg_index,
@@ -356,13 +416,26 @@ app.get('/api/v1/matches/:category', async (req, res) => {
             LIMIT 50;
         `;
         const result = await pool.query(query, [category]);
+        
         console.log('[API] Résultats pour', category, ':', result.rows.length, 'matchs');
-        console.log('[API] Raw rows:', JSON.stringify(result.rows));
-        res.json({ success: true, data: result.rows });
+        
+        // =============================================
+        // 3. RÉPONSE AVEC SESSION
+        // =============================================
+        res.json({
+            success: true,
+            data: result.rows,
+            session: session
+        });
+        
     } catch (err) {
         console.error('[API] 🔴 ERREUR /matches/' + category + ':', err.message);
         console.error('[API] Code SQL:', err.code, '| Detail:', err.detail);
-        res.status(500).json({ success: false, code: 'ERR_FETCH_MATCHES' });
+        res.status(500).json({ 
+            success: false, 
+            code: 'ERR_FETCH_MATCHES',
+            message: err.message 
+        });
     }
 });
 
