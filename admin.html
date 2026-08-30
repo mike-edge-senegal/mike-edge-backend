@@ -489,6 +489,7 @@ function showKioskList(){
 }
 
 function showKioskCreate(){
+    alert('CLIC DÉTECTÉ'); // 🔧 DIAGNOSTIC
     if(kioskAlbums.length>=6){showToast("Limite de 6 albums atteinte.");return}
     document.getElementById('kioskList').style.display='none';
     document.getElementById('kioskCreate').style.display='block';
