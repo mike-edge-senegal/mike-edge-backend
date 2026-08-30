@@ -751,6 +751,36 @@ function parseTelegramTextClient(rawText){
     return out;
 }
 
+// ============================================
+// 📊 FONCTIONS DE GESTION DES SESSIONS ACTIVES
+// ============================================
+
+// Variable globale pour stocker les sessions actives
+var activeSessions = {};
+
+// 🔧 Récupérer les sessions actives depuis le backend
+async function loadActiveSessions() {
+    try {
+        const response = await fetch(API_BASE + '/sessions/active', {
+            method: 'GET',
+            headers: { 'Accept': 'application/json' }
+        });
+        if (response.ok) {
+            const data = await response.json();
+            if (data.success && data.data) {
+                activeSessions = data.data;
+                console.log('[SESSIONS] Sessions actives chargées:', activeSessions);
+                return true;
+            }
+        }
+        console.warn('[SESSIONS] Impossible de charger les sessions actives, utilisation du fallback');
+        return false;
+    } catch (err) {
+        console.warn('[SESSIONS] Erreur chargement sessions:', err.message);
+        return false;
+    }
+}
+
 // ╔══════════════════════════════════════════════════════════════════════╗
 // ║  LOGIQUE UI — DASHBOARD · SAISIE · PREVIEW · ÉDITION · PUBLICATION  ║
 // ╚══════════════════════════════════════════════════════════════════════╝
@@ -768,13 +798,21 @@ let currentCat=null;
 let currentParsed=null;
 let existingMatches={};
 
-window.addEventListener('DOMContentLoaded', function(){
-    loadDashboard();
+// Variables pour le compteur de session active
+var activeSessionCounts = {};
+var activeSessionIds = {};
+var activeSessionNumbers = {};
+
+window.addEventListener('DOMContentLoaded', async function(){
+    // Charger les sessions actives en premier
+    await loadActiveSessions();
+    await loadDashboard();
+    
     var btn=document.getElementById('testKeyBtn');
     if(btn){btn.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();testAdminKey();});btn.addEventListener('touchstart',function(e){e.preventDefault();e.stopPropagation();testAdminKey();},{passive:false});}
     var ficheInput = document.getElementById('ficheInput');
-if(ficheInput){ ficheInput.addEventListener('input', saveFicheDraft); }
-var btnA=document.getElementById('btnAnalyser');
+    if(ficheInput){ ficheInput.addEventListener('input', saveFicheDraft); }
+    var btnA=document.getElementById('btnAnalyser');
     if(btnA){btnA.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();analyserFiche();});btnA.addEventListener('touchstart',function(e){e.preventDefault();e.stopPropagation();analyserFiche();},{passive:false});}
     var btnP=document.getElementById('btnPublier');
     if(btnP){btnP.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();publierFiche();});btnP.addEventListener('touchstart',function(e){e.preventDefault();e.stopPropagation();publierFiche();},{passive:false});}
@@ -806,9 +844,15 @@ var btnA=document.getElementById('btnAnalyser');
 
 async function loadDashboard(){
     document.getElementById('pronosGlobalStatus').textContent='⏳ Sync...';
+    
+    // Recharger les sessions actives
+    await loadActiveSessions();
+    
     const promises=CATEGORIES.map(c=>fetch(API_BASE+'/matches/'+c.key,{headers:{'Accept':'application/json'}}).then(r=>r.ok?r.json():{success:false,data:[]}).catch(()=>({success:false,data:[]})));
     const results=await Promise.all(promises);
-    results.forEach((res,i)=>{ existingMatches[CATEGORIES[i].key]=(res.success&&Array.isArray(res.data))?res.data:[]; });
+    results.forEach((res,i)=>{ 
+        existingMatches[CATEGORIES[i].key]=(res.success&&Array.isArray(res.data))?res.data:[]; 
+    });
     renderDashboard();
     document.getElementById('pronosGlobalStatus').textContent='✅ Sync';
 }
@@ -818,9 +862,7 @@ function renderDashboard(){
     grid.innerHTML='';
     CATEGORIES.forEach(cat=>{
         const matches=existingMatches[cat.key]||[];
-        // Comptage basé sur la session active uniquement
-        const activeCount = matches.length; // TODO: appeler /sessions/active pour le vrai compteur
-        const count = activeCount;
+        const count = matches.length;
         const pct=Math.min(100,(count/cat.quota)*100);
         const isFull=count>=cat.quota;
         const badgeClass=isFull?'full':(count>0?'ok':'warn');
@@ -829,10 +871,31 @@ function renderDashboard(){
         let irgHtml='';
         sorted.forEach(m=>{ const irg=m.irg_index??m.irg??'?'; irgHtml+=`<div class="cat-irg-item"><span class="cat-irg-teams">${m.home_team||'??'} vs ${m.away_team||'??'}</span><span class="cat-irg-score">IRG ${irg}</span></div>`; });
         
+        // 🔧 SESSION ACTIVE : récupérer le compteur depuis activeSessions
+        const sessionData = activeSessions[cat.key] || {};
+        const activeCount = sessionData.count || 0;
+        const sessionId = sessionData.session_id || '?';
+        const sessionNumber = sessionData.session_number || '?';
+        const isActiveFull = activeCount >= cat.quota;
+        const activeBadgeClass = isActiveFull ? 'full' : (activeCount > 0 ? 'ok' : 'warn');
+        const activeBadgeText = isActiveFull ? 'COMPLET' : (activeCount + '/' + cat.quota);
+        
         const card=document.createElement('div');
         card.className='cat-card';
         card.style.borderLeft=`3px solid ${cat.color}`;
-        card.innerHTML=`<div class="cat-card-header"><span class="cat-title">${cat.label}</span><span class="cat-badge ${badgeClass}">${badgeText}</span></div><div class="cat-bar-bg"><div class="cat-bar-fill" style="width:${pct}%;background:${cat.color}"></div></div><div class="cat-sub">${isFull?'Quota atteint':(cat.quota-count)+' place(s) libre(s)'}</div><div class="cat-irg-list">${irgHtml}</div>`;
+        card.innerHTML=`
+            <div class="cat-card-header">
+                <span class="cat-title">${cat.label}</span>
+                <span class="cat-badge ${badgeClass}">${badgeText}</span>
+            </div>
+            <div class="cat-bar-bg"><div class="cat-bar-fill" style="width:${pct}%;background:${cat.color}"></div></div>
+            <div class="cat-sub">${isFull?'Quota atteint — cliquez pour importer':(cat.quota-count)+' place(s) libre(s)'}</div>
+            <div style="font-size:10px;color:var(--diamond-cyan);margin-top:4px;">
+                📌 Session #${sessionNumber} : ${activeCount}/${cat.quota} 
+                ${isActiveFull ? '🔒 COMPLETE' : '✅ ACTIVE'}
+            </div>
+            <div class="cat-irg-list">${irgHtml}</div>
+        `;
         card.onclick=()=>openSaisie(cat);
         grid.appendChild(card);
     });
@@ -845,8 +908,12 @@ function openSaisie(cat){
     document.getElementById('pronosSaisie').classList.add('active');
     document.getElementById('saisieCatTitle').textContent=cat.label;
     document.getElementById('publishCatName').textContent=cat.label;
-    const count=(existingMatches[cat.key]||[]).length;
-    document.getElementById('saisieCatCounter').textContent=count+'/'+cat.quota;
+    
+    // 🔧 Utiliser le compteur de la session active
+    const sessionData = activeSessions[cat.key] || {};
+    const activeCount = sessionData.count || 0;
+    document.getElementById('saisieCatCounter').textContent=activeCount+'/'+cat.quota;
+    
     document.getElementById('ficheInput').value='';
     document.getElementById('fichePreview').style.display='none';
     document.getElementById('btnPublier').classList.remove('active');
@@ -1058,7 +1125,11 @@ async function publierFiche(){
             document.getElementById('fichePreview').style.display='none';
             document.getElementById('btnPublier').classList.remove('active');
             currentParsed=null;
-            loadDashboard();
+            
+            // 🔧 CRITIQUE : Recharger l'état depuis le backend après succès
+            // On recharge les sessions actives ET le dashboard
+            await loadActiveSessions();
+            await loadDashboard();
         }else{
             const msg=j.message||j.code||JSON.stringify(j.errors||j);
             showToast(`Erreur: ${msg}`,'error');
@@ -1068,4 +1139,4 @@ async function publierFiche(){
 }
 </script>
 </body>
-                                                </html>
+  </html>
