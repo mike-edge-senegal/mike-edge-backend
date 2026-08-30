@@ -4,6 +4,7 @@
 // FIX : import_logs hors transaction principale
 // FIX : Auto-création ligue + équipe via unaccent + fallback cross-ligue
 // SESSION : Gestion atomique des sessions avec verrou pg_advisory_xact_lock
+// FIX : PostgreSQL 42P08 - type mismatch sur $1 (DeepSeek)
 // DIAGNOSTIC : TRACE CHIRURGICALE TRANSACTION
 // ============================================
 
@@ -619,10 +620,11 @@ async function savePublicationTransaction(
             );
             console.log('[SESSION] Session', sessionId, 'fermée (quota atteint)');
 
-            // Créer une nouvelle session
+            // 🔧 FIX V11.17.5 : Correction du type mismatch PostgreSQL 42P08
+            // Le paramètre $1 doit être explicitement casté en varchar
             const newSession = await client.query(
                 `INSERT INTO category_sessions (category_name, session_number, status)
-                 VALUES ($1, (SELECT COALESCE(MAX(session_number), 0) + 1 FROM category_sessions WHERE category_name = $1), 'ACTIVE')
+                 VALUES ($1::varchar, (SELECT COALESCE(MAX(session_number), 0) + 1 FROM category_sessions WHERE category_name = $1::varchar), 'ACTIVE')
                  RETURNING id`,
                 [categoryName]
             );
