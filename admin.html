@@ -798,11 +798,6 @@ let currentCat=null;
 let currentParsed=null;
 let existingMatches={};
 
-// Variables pour le compteur de session active
-var activeSessionCounts = {};
-var activeSessionIds = {};
-var activeSessionNumbers = {};
-
 window.addEventListener('DOMContentLoaded', async function(){
     // Charger les sessions actives en premier
     await loadActiveSessions();
@@ -861,24 +856,29 @@ function renderDashboard(){
     const grid=document.getElementById('categoriesGrid');
     grid.innerHTML='';
     CATEGORIES.forEach(cat=>{
-        const matches=existingMatches[cat.key]||[];
-        const count = matches.length;
-        const pct=Math.min(100,(count/cat.quota)*100);
-        const isFull=count>=cat.quota;
-        const badgeClass=isFull?'full':(count>0?'ok':'warn');
-        const badgeText=isFull?'COMPLET':(count+'/'+cat.quota);
-        const sorted=[...matches].sort((a,b)=>{ const ia=Number(a.irg_index??a.irg??0), ib=Number(b.irg_index??b.irg??0); return ib-ia; });
-        let irgHtml='';
-        sorted.forEach(m=>{ const irg=m.irg_index??m.irg??'?'; irgHtml+=`<div class="cat-irg-item"><span class="cat-irg-teams">${m.home_team||'??'} vs ${m.away_team||'??'}</span><span class="cat-irg-score">IRG ${irg}</span></div>`; });
-        
         // 🔧 SESSION ACTIVE : récupérer le compteur depuis activeSessions
         const sessionData = activeSessions[cat.key] || {};
         const activeCount = sessionData.count || 0;
-        const sessionId = sessionData.session_id || '?';
         const sessionNumber = sessionData.session_number || '?';
         const isActiveFull = activeCount >= cat.quota;
-        const activeBadgeClass = isActiveFull ? 'full' : (activeCount > 0 ? 'ok' : 'warn');
-        const activeBadgeText = isActiveFull ? 'COMPLET' : (activeCount + '/' + cat.quota);
+        
+        // 🔧 Historique conservé pour l'affichage des matchs
+        const matches = existingMatches[cat.key] || [];
+        const sorted = [...matches].sort((a,b)=>{ 
+            const ia=Number(a.irg_index??a.irg??0), ib=Number(b.irg_index??b.irg??0); 
+            return ib-ia; 
+        });
+        let irgHtml='';
+        sorted.forEach(m=>{ 
+            const irg=m.irg_index??m.irg??'?'; 
+            irgHtml+=`<div class="cat-irg-item"><span class="cat-irg-teams">${m.home_team||'??'} vs ${m.away_team||'??'}</span><span class="cat-irg-score">IRG ${irg}</span></div>`; 
+        });
+        
+        // 🔧 Badge basé sur activeCount (session active)
+        const badgeClass = isActiveFull ? 'full' : (activeCount > 0 ? 'ok' : 'warn');
+        const badgeText = isActiveFull ? 'COMPLET' : (activeCount + '/' + cat.quota);
+        const pct = Math.min(100, (activeCount / cat.quota) * 100);
+        const isFull = activeCount >= cat.quota;
         
         const card=document.createElement('div');
         card.className='cat-card';
@@ -889,7 +889,7 @@ function renderDashboard(){
                 <span class="cat-badge ${badgeClass}">${badgeText}</span>
             </div>
             <div class="cat-bar-bg"><div class="cat-bar-fill" style="width:${pct}%;background:${cat.color}"></div></div>
-            <div class="cat-sub">${isFull?'Quota atteint — cliquez pour importer':(cat.quota-count)+' place(s) libre(s)'}</div>
+            <div class="cat-sub">${isFull ? 'Quota atteint — cliquez pour importer' : (cat.quota - activeCount) + ' place(s) libre(s)'}</div>
             <div style="font-size:10px;color:var(--diamond-cyan);margin-top:4px;">
                 📌 Session #${sessionNumber} : ${activeCount}/${cat.quota} 
                 ${isActiveFull ? '🔒 COMPLETE' : '✅ ACTIVE'}
