@@ -6,6 +6,7 @@
  * FIX : CAST match_id::integer pour corriger le JOIN vide
  * FIX : GET /api/v1/matches/:category renvoie désormais les infos de session active
  * FIX : La liste des matchs est filtrée par session_id (Claude audit)
+ * FIX : Routes Kiosque Magazine HD (Gestion Admin)
  * -------------------------------------------------------------------
  */
 
@@ -494,6 +495,118 @@ app.get('/api/v1/magazines/:id/pages', async (req, res) => {
         res.json({ success: true, data: result.rows });
     } catch (err) {
         res.status(500).json({ success: false, code: 'ERR_FETCH_PAGES' });
+    }
+});
+
+// ==========================================
+// KIOSQUE MAGAZINE HD — GESTION ADMIN (Claude)
+// ==========================================
+
+app.delete('/api/v1/magazines/pages/:pageId', mutationLimiter, verifyAdminKey, async (req, res) => {
+    const pageId = parseInt(req.params.pageId, 10);
+    if (isNaN(pageId) || pageId <= 0) {
+        return res.status(400).json({ success: false, code: 'ERR_INVALID_ID' });
+    }
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        const pageResult = await client.query(
+            'SELECT image_url, magazine_id, page_number FROM magazine_pages WHERE id = $1',
+            [pageId]
+        );
+        if (pageResult.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ success: false, code: 'ERR_PAGE_NOT_FOUND' });
+        }
+        const { image_url, magazine_id, page_number } = pageResult.rows[0];
+
+        await client.query('DELETE FROM magazine_pages WHERE id = $1', [pageId]);
+        await client.query(
+            'UPDATE magazine_pages SET page_number = page_number - 1 WHERE magazine_id = $1 AND page_number > $2',
+            [magazine_id, page_number]
+        );
+        await client.query('COMMIT');
+
+        res.json({ success: true, deleted_url: image_url });
+    } catch (err) {
+        await client.query('ROLLBACK');
+        console.error('❌ Erreur suppression page:', err.message);
+        res.status(500).json({ success: false, code: 'ERR_DELETE_PAGE' });
+    } finally {
+        client.release();
+    }
+});
+
+app.delete('/api/v1/magazines/:id', mutationLimiter, verifyAdminKey, async (req, res) => {
+    const magazineId = parseInt(req.params.id, 10);
+    if (isNaN(magazineId) || magazineId <= 0) {
+        return res.status(400).json({ success: false, code: 'ERR_INVALID_ID' });
+    }
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        const magResult = await client.query('SELECT cover_url FROM magazines WHERE id = $1', [magazineId]);
+        if (magResult.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ success: false, code: 'ERR_MAGAZINE_NOT_FOUND' });
+        }
+        const pagesResult = await client.query('SELECT image_url FROM magazine_pages WHERE magazine_id = $1', [magazineId]);
+        const urlsToClean = [magResult.rows[0].cover_url, ...pagesResult.rows.map(r => r.image_url)].filter(Boolean);
+
+        await client.query('DELETE FROM magazine_pages WHERE magazine_id = $1', [magazineId]);
+        await client.query('DELETE FROM magazines WHERE id = $1', [magazineId]);
+        await client.query('COMMIT');
+
+        res.json({ success: true, urls_to_clean: urlsToClean });
+    } catch (err) {
+        await client.query('ROLLBACK');
+        console.error('❌ Erreur suppression album:', err.message);
+        res.status(500).json({ success: false, code: 'ERR_DELETE_MAGAZINE' });
+    } finally {
+        client.release();
+    }
+});
+
+app.put('/api/v1/magazines/:id', mutationLimiter, verifyAdminKey, async (req, res) => {
+    const magazineId = parseInt(req.params.id, 10);
+    const { title, edition_date } = req.body;
+    if (isNaN(magazineId) || magazineId <= 0) {
+        return res.status(400).json({ success: false, code: 'ERR_INVALID_ID' });
+    }
+    if (!title || !edition_date) {
+        return res.status(400).json({ success: false, code: 'ERR_MISSING_FIELDS' });
+    }
+    try {
+        const result = await pool.query(
+            'UPDATE magazines SET title = $1, edition_date = $2 WHERE id = $3 RETURNING id',
+            [title.trim(), edition_date, magazineId]
+        );
+        if (result.rows.length === 0) {
+            return res.status(404).json({ success: false, code: 'ERR_MAGAZINE_NOT_FOUND' });
+        }
+        res.json({ success: true });
+    } catch (err) {
+        console.error('❌ Erreur update magazine:', err.message);
+        res.status(500).json({ success: false, code: 'ERR_UPDATE_MAGAZINE' });
+    }
+});
+
+app.get('/api/v1/admin/magazines', readLimiter, verifyAdminKey, async (req, res) => {
+    try {
+        const query = `
+            SELECT m.id, m.title, m.edition_date, m.cover_url, m.is_active,
+                   COUNT(mp.id)::int as page_count
+            FROM magazines m
+            LEFT JOIN magazine_pages mp ON mp.magazine_id = m.id
+            WHERE m.is_active = true
+            GROUP BY m.id
+            ORDER BY m.edition_date DESC
+        `;
+        const result = await pool.query(query);
+        res.json({ success: true, data: result.rows });
+    } catch (err) {
+        console.error('❌ Erreur admin magazines:', err.message);
+        res.status(500).json({ success: false, code: 'ERR_FETCH_ADMIN_MAGAZINES' });
     }
 });
 
