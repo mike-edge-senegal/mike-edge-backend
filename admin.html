@@ -185,7 +185,7 @@ th{background-color:rgba(212,175,55,0.1);color:var(--gold)}
 <!-- VUE LISTE -->
 <div id="kioskList">
   <div class="kiosk-grid" id="kioskGrid"></div>
-  <button class="btn btn-gold" id="kioskNewBtn" onclick="showKioskCreate()">➕ NOUVEL ALBUM</button>
+  <button class="btn btn-gold" id="kioskNewBtn" onclick="alert('TEST DIRECT')">➕ NOUVEL ALBUM</button>
 </div>
 
 <!-- VUE CRÉATION -->
@@ -471,6 +471,8 @@ function renderKioskGrid(){
             '</div>';
         g.appendChild(card);
     });
+    // Le bouton "NOUVEL ALBUM" a été modifié directement dans le HTML pour le test
+    // On ne modifie pas son comportement ici.
     var newBtn=document.getElementById('kioskNewBtn');
     if(kioskAlbums.length>=6){
         newBtn.disabled=true;
@@ -489,7 +491,8 @@ function showKioskList(){
 }
 
 function showKioskCreate(){
-    alert('CLIC DÉTECTÉ'); // 🔧 DIAGNOSTIC
+    // Cette fonction est actuellement désactivée par le test direct sur le bouton
+    // On la laisse pour la suite
     if(kioskAlbums.length>=6){showToast("Limite de 6 albums atteinte.");return}
     document.getElementById('kioskList').style.display='none';
     document.getElementById('kioskCreate').style.display='block';
