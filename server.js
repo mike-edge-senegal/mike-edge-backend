@@ -5,6 +5,7 @@
  * FIX : Classement par IRG décroissant (ORDER BY m.irg_index DESC)
  * FIX : CAST match_id::integer pour corriger le JOIN vide
  * FIX : GET /api/v1/matches/:category renvoie désormais les infos de session active
+ * FIX : La liste des matchs est filtrée par session_id (Claude audit)
  * -------------------------------------------------------------------
  */
 
@@ -323,7 +324,7 @@ app.get('/api/v1/vrp/stats', readLimiter, verifyAdminKey, async (req, res) => {
 });
 
 // ==========================================
-// 🔧 V11.17.5 FIX : CAST match_id::integer + SESSION ACTIVE
+// 🔧 V11.17.5 FIX : CAST match_id::integer + SESSION ACTIVE + FILTRE SESSION_ID
 // ==========================================
 app.get('/api/v1/matches/:category', async (req, res) => {
     const category = req.params.category.toUpperCase();
@@ -396,8 +397,9 @@ app.get('/api/v1/matches/:category', async (req, res) => {
         console.log('[API] Session active pour', category, ':', session);
         
         // =============================================
-        // 2. RÉCUPÉRER LES MATCHS HISTORIQUES
+        // 2. RÉCUPÉRER LES MATCHS DE LA SESSION ACTIVE UNIQUEMENT
         // =============================================
+        // 🔧 FIX CLAUDE : Filtrer par session_id pour ne renvoyer que les matchs de la session active
         const query = `
             SELECT 
                 m.id, m.match_datetime, m.irg_index,
@@ -412,12 +414,13 @@ app.get('/api/v1/matches/:category', async (req, res) => {
             LEFT JOIN teams t1 ON m.home_team_id = t1.id
             LEFT JOIN teams t2 ON m.away_team_id = t2.id
             WHERE mcr.category_name = $1
+              AND mcr.session_id = $2
             ORDER BY m.irg_index DESC NULLS LAST
             LIMIT 50;
         `;
-        const result = await pool.query(query, [category]);
+        const result = await pool.query(query, [category, session.id]);
         
-        console.log('[API] Résultats pour', category, ':', result.rows.length, 'matchs');
+        console.log('[API] Résultats pour', category, ':', result.rows.length, 'matchs (session active uniquement)');
         
         // =============================================
         // 3. RÉPONSE AVEC SESSION
