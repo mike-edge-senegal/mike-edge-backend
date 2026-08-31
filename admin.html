@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>🎛️ COCKPIT ADMIN — MIKE EDGE V11.18.0</title>
+<title>🎛️ COCKPIT ADMIN — MIKE EDGE V11.18.1</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <style>
@@ -139,7 +139,7 @@ th{background-color:rgba(212,175,55,0.1);color:var(--gold)}
 
 <div style="text-align:center;margin-bottom:16px;padding-top:10px;">
 <h1 style="font-size:20px;color:var(--gold);letter-spacing:1px;">🎛️ COCKPIT ADMIN MIKE EDGE</h1>
-<p style="font-size:11px;color:var(--text-muted);margin-top:2px;">V11.18.0</p>
+<p style="font-size:11px;color:var(--text-muted);margin-top:2px;">V11.18.1</p>
 <p id="apiUrlDisplay" style="font-size:10px;color:#666;margin-top:4px;"></p>
 </div>
 
@@ -222,7 +222,7 @@ th{background-color:rgba(212,175,55,0.1);color:var(--gold)}
   <div id="kioskPagesList"></div>
 
   <label class="label" style="margin-top:12px">Ajouter des pages HD (9:16) :</label>
-  <input type="file" id="kioskAddPages" accept="image/*" multiple style="padding:8px;color:var(--text-muted);" onchange="handleAddPagesSelect(this)">
+  <input type="file" id="kioskAddPages" accept="image/*" multiple style="padding:8px;color:var(--text-muted);">
   <div id="kioskAddQueueContainer" style="display:none;margin-bottom:12px">
     <span class="label" id="kioskAddQueueCount">0 page(s)</span>
     <div id="kioskAddQueueGrid" class="page-queue-grid"></div>
@@ -586,38 +586,81 @@ async function deleteKioskPage(pageNumber){
     }catch(e){showToast("Erreur: "+e.message)}finally{setLoading(false)}
 }
 
+// ============================================
+// 🔧 FIX Kimi V11.18.1 : Gestion de l'ajout de pages (mobile)
+// ============================================
 function handleAddPagesSelect(input){
     var files=Array.from(input.files||[]);
-    if(!files.length)return;
+    console.log('[KIOSK] handleAddPagesSelect called, files:', files.length);
+    if(!files.length){showToast("Aucun fichier sélectionné."); return;}
+    
     var mag=kioskAlbums.find(function(m){return m.id===kioskCurrentId});
     var currentCount=mag?mag.page_count:0;
+    console.log('[KIOSK] Album ID:', kioskCurrentId, 'Current pages:', currentCount);
+    
     if(currentCount+kioskAddSelectedPages.length+files.length>10){
         showToast("❌ Dépassement : "+(currentCount+kioskAddSelectedPages.length+files.length)+"/10 pages max.");
         input.value='';return;
     }
+    
+    var added=0;
     for(var i=0;i<files.length;i++){
         var err=validateImageFile(files[i]);
-        if(err){showToast(err);continue}
+        if(err){showToast(err); continue;}
         kioskAddSelectedPages.push(files[i]);
+        added++;
     }
-    renderKioskAddQueue();input.value='';
+    
+    console.log('[KIOSK] Added to queue:', added, 'Total queued:', kioskAddSelectedPages.length);
+    input.value='';
+    
+    // 🔧 Force le rafraîchissement DOM sur mobile
+    setTimeout(function(){
+        renderKioskAddQueue();
+        if(added>0){
+            showToast(added+" photo(s) prête(s). Appuyez sur 📤 ENVOYER.");
+        }
+    }, 50);
 }
 
 function renderKioskAddQueue(){
-    var c=document.getElementById('kioskAddQueueContainer'),g=document.getElementById('kioskAddQueueGrid');
-    kioskAddPageObjectUrls.forEach(function(u){URL.revokeObjectURL(u)});kioskAddPageObjectUrls=[];
-    if(!kioskAddSelectedPages.length){c.style.display='none';return}
+    var c=document.getElementById('kioskAddQueueContainer');
+    var g=document.getElementById('kioskAddQueueGrid');
+    
+    kioskAddPageObjectUrls.forEach(function(u){URL.revokeObjectURL(u)});
+    kioskAddPageObjectUrls=[];
+    
+    if(!kioskAddSelectedPages.length){
+        c.style.display='none';
+        console.log('[KIOSK] Queue empty, hiding container');
+        return;
+    }
+    
     c.style.display='block';
+    console.log('[KIOSK] Queue rendered with', kioskAddSelectedPages.length, 'pages');
+    
     document.getElementById('kioskAddQueueCount').textContent=kioskAddSelectedPages.length+' page(s) prête(s)';
     g.innerHTML='';
+    
     kioskAddSelectedPages.forEach(function(file,idx){
-        var thumb=document.createElement('div');thumb.className='page-thumb';
-        var img=document.createElement('img');var url=URL.createObjectURL(file);kioskAddPageObjectUrls.push(url);img.src=url;
-        var rm=document.createElement('button');rm.className='page-thumb-remove';rm.textContent='✕';
-        rm.setAttribute('data-action','remove-queue-page');rm.setAttribute('data-idx',idx);
-        thumb.appendChild(img);thumb.appendChild(rm);g.appendChild(thumb);
+        var thumb=document.createElement('div');
+        thumb.className='page-thumb';
+        var img=document.createElement('img');
+        var url=URL.createObjectURL(file);
+        kioskAddPageObjectUrls.push(url);
+        img.src=url;
+        img.alt='Page '+(idx+1);
+        var rm=document.createElement('button');
+        rm.className='page-thumb-remove';
+        rm.textContent='✕';
+        rm.setAttribute('data-action','remove-queue-page');
+        rm.setAttribute('data-idx',idx);
+        thumb.appendChild(img);
+        thumb.appendChild(rm);
+        g.appendChild(thumb);
     });
 }
+// ============================================
 
 async function uploadNewPages(){
     if(!kioskAddSelectedPages.length)return;
@@ -1080,6 +1123,15 @@ window.addEventListener('DOMContentLoaded', async function(){
             else if(action==='cancel')cancelEdit(sec,idx);
         },{passive:false});
     }
+    
+    // 🔧 FIX Kimi V11.18.1 : Écouteur programmatique pour l'input file Kiosque (mobile)
+    var kioskAddInput = document.getElementById('kioskAddPages');
+    if(kioskAddInput){
+        kioskAddInput.addEventListener('change', function(e){
+            console.log('[KIOSK] Change event fired, files:', this.files ? this.files.length : 0);
+            handleAddPagesSelect(this);
+        });
+    }
 });
 
 async function loadDashboard(){
@@ -1398,4 +1450,4 @@ async function publierFiche(){
 }
 </script>
 </body>
-  </html>
+      </html>
