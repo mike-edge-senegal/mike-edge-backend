@@ -177,34 +177,31 @@ th{background-color:rgba(212,175,55,0.1);color:var(--gold)}
 
 
 <!-- ========================================================== -->
-<!-- KIOSQUE MAGAZINE HD — NOUVEAU BLOC (Claude)                -->
+<!-- KIOSQUE MAGAZINE HD — CORRIGÉ (tactile fiable)             -->
 <!-- ========================================================== -->
 <div class="card" id="kioskCard">
-<div class="card-title"><span>🔥 TEST123 🔥</span></div>
+<div class="card-title"><span>2. KIOSQUE MAGAZINE HD</span></div>
 
-<!-- VUE LISTE -->
 <div id="kioskList">
   <div class="kiosk-grid" id="kioskGrid"></div>
-  <button class="btn btn-gold" id="kioskNewBtn" onclick="alert('OK CA MARCHE')">🚨 CLIQUE ICI 🚨</button>
+  <button class="btn btn-gold" id="kioskNewBtn" data-action="new-album">➕ NOUVEL ALBUM</button>
 </div>
 
-<!-- VUE CRÉATION -->
 <div id="kioskCreate" style="display:none">
   <div class="saisie-header" style="border:none;padding-bottom:0">
-    <button class="saisie-back" onclick="showKioskList()">← Retour</button>
+    <button class="saisie-back" data-action="kiosk-back">← Retour</button>
     <span class="saisie-title">NOUVEL ALBUM</span>
     <span></span>
   </div>
   <label class="label">Titre :</label><input type="text" id="kioskNewTitle" placeholder="Ex: Édition Spéciale">
   <label class="label">Date :</label><input type="date" id="kioskNewDate">
   <label class="label">Couverture :</label><input type="file" id="kioskNewCover" accept="image/*" style="padding:8px;color:var(--text-muted);">
-  <button class="btn btn-gold" onclick="createAlbum()">✅ CRÉER L'ALBUM</button>
+  <button class="btn btn-gold" data-action="create-album">✅ CRÉER L'ALBUM</button>
 </div>
 
-<!-- VUE DÉTAIL -->
 <div id="kioskDetail" style="display:none">
   <div class="saisie-header" style="border:none;padding-bottom:0">
-    <button class="saisie-back" onclick="showKioskList()">← Retour</button>
+    <button class="saisie-back" data-action="kiosk-back">← Retour</button>
     <span class="saisie-title" id="kioskDetailCounter">0/10</span>
   </div>
   <div class="kiosk-detail-header">
@@ -212,14 +209,14 @@ th{background-color:rgba(212,175,55,0.1);color:var(--gold)}
     <div>
       <div class="kiosk-title" id="kioskDetailTitle" style="font-size:15px"></div>
       <div class="kiosk-date" id="kioskDetailDate"></div>
-      <button class="saisie-back" style="padding:4px 0" onclick="showKioskEdit()">✏️ Modifier infos</button>
+      <button class="saisie-back" style="padding:4px 0" data-action="edit-info">✏️ Modifier infos</button>
     </div>
   </div>
 
   <div id="kioskEditForm" style="display:none;margin-bottom:14px">
     <label class="label">Titre :</label><input type="text" id="kioskEditTitle">
     <label class="label">Date :</label><input type="date" id="kioskEditDate">
-    <button class="btn btn-gold" onclick="saveKioskEdit()">💾 Enregistrer</button>
+    <button class="btn btn-gold" data-action="save-edit">💾 Enregistrer</button>
   </div>
 
   <label class="label">Pages :</label>
@@ -230,10 +227,10 @@ th{background-color:rgba(212,175,55,0.1);color:var(--gold)}
   <div id="kioskAddQueueContainer" style="display:none;margin-bottom:12px">
     <span class="label" id="kioskAddQueueCount">0 page(s)</span>
     <div id="kioskAddQueueGrid" class="page-queue-grid"></div>
-    <button class="btn btn-gold" onclick="uploadNewPages()">📤 ENVOYER CES PAGES</button>
+    <button class="btn btn-gold" data-action="upload-pages">📤 ENVOYER CES PAGES</button>
   </div>
 
-  <button class="kiosk-page-del" id="kioskDeleteAlbumBtn" style="width:100%;margin-top:16px" onclick="deleteAlbumStep()">🗑 Supprimer cet album entier</button>
+  <button class="kiosk-page-del" id="kioskDeleteAlbumBtn" style="width:100%;margin-top:16px" data-action="delete-album">🗑 Supprimer cet album entier</button>
 </div>
 
 </div>
@@ -340,6 +337,7 @@ window.addEventListener('DOMContentLoaded', async function(){
     var banner = document.getElementById('connectionBanner');
     banner.className = 'conn-checking';
     banner.textContent = '⏳ ÉTAPE 1/3 : Serveur Render...';
+    loadKioskList();
 
     try {
         var res = await fetch(window.location.origin + '/health');
@@ -436,7 +434,7 @@ async function publishSector(){
 }
 
 // ============================================
-// KIOSQUE MAGAZINE HD — NOUVEAU CODE (Claude)
+// KIOSQUE MAGAZINE HD — CORRIGÉ (tactile fiable)
 // ============================================
 var kioskAlbums=[];
 var kioskCurrentId=null;
@@ -461,7 +459,8 @@ function renderKioskGrid(){
     kioskAlbums.forEach(function(m){
         var card=document.createElement('div');
         card.className='kiosk-card';
-        card.onclick=function(){openKioskDetail(m.id)};
+        card.setAttribute('data-action','open-album');
+        card.setAttribute('data-id',m.id);
         card.innerHTML=
             '<img class="kiosk-cover" src="'+(m.cover_url||'')+'">'+
             '<div class="kiosk-info">'+
@@ -550,8 +549,7 @@ async function loadKioskDetail(){
             row.innerHTML=
                 '<span class="kiosk-page-num">P.'+p.page_number+'</span>'+
                 '<img src="'+p.image_url+'">'+
-                '<button class="kiosk-page-del" data-page="'+p.page_number+'">🗑</button>';
-            row.querySelector('button').onclick=function(){deleteKioskPage(p.page_number)};
+                '<button class="kiosk-page-del" data-action="delete-page" data-page="'+p.page_number+'">🗑</button>';
             list.appendChild(row);
         });
         mag.page_count=pages.length;
@@ -606,7 +604,7 @@ function renderKioskAddQueue(){
         var thumb=document.createElement('div');thumb.className='page-thumb';
         var img=document.createElement('img');var url=URL.createObjectURL(file);kioskAddPageObjectUrls.push(url);img.src=url;
         var rm=document.createElement('button');rm.className='page-thumb-remove';rm.textContent='✕';
-        rm.onclick=function(){kioskAddSelectedPages.splice(idx,1);renderKioskAddQueue()};
+        rm.setAttribute('data-action','remove-queue-page');rm.setAttribute('data-idx',idx);
         thumb.appendChild(img);thumb.appendChild(rm);g.appendChild(thumb);
     });
 }
@@ -683,6 +681,29 @@ async function deleteAlbumConfirmed(){
     }catch(e){showToast("Erreur: "+e.message)}finally{setLoading(false)}
 }
 
+function kioskHandleAction(e){
+    var el=e.target.closest('[data-action]');
+    if(!el||!document.getElementById('kioskCard').contains(el))return;
+    e.preventDefault();e.stopPropagation();
+    var action=el.getAttribute('data-action');
+    switch(action){
+        case 'new-album': showKioskCreate(); break;
+        case 'kiosk-back': showKioskList(); break;
+        case 'create-album': createAlbum(); break;
+        case 'edit-info': showKioskEdit(); break;
+        case 'save-edit': saveKioskEdit(); break;
+        case 'upload-pages': uploadNewPages(); break;
+        case 'delete-album': deleteAlbumStep(); break;
+        case 'open-album': openKioskDetail(parseInt(el.getAttribute('data-id'),10)); break;
+        case 'delete-page': deleteKioskPage(parseInt(el.getAttribute('data-page'),10)); break;
+        case 'remove-queue-page':
+            kioskAddSelectedPages.splice(parseInt(el.getAttribute('data-idx'),10),1);
+            renderKioskAddQueue();
+            break;
+    }
+}
+document.getElementById('kioskCard').addEventListener('click',kioskHandleAction);
+document.getElementById('kioskCard').addEventListener('touchstart',kioskHandleAction,{passive:false});
 // ============================================
 // FIN KIOSQUE MAGAZINE HD
 // ============================================
@@ -1367,4 +1388,4 @@ async function publierFiche(){
 }
 </script>
 </body>
-    </html>
+  </html>
