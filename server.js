@@ -1,5 +1,5 @@
 /**
- * 🏆 PROJET MIKE EDGE - SERVER.JS (V11.17.5)
+ * 🏆 PROJET MIKE EDGE - SERVER.JS (V11.18.0)
  * -------------------------------------------------------------------
  * FIX : category_override passé à savePublicationTransaction
  * FIX : Classement par IRG décroissant (ORDER BY m.irg_index DESC)
@@ -7,6 +7,10 @@
  * FIX : GET /api/v1/matches/:category renvoie désormais les infos de session active
  * FIX : La liste des matchs est filtrée par session_id (Claude audit)
  * FIX : Routes Kiosque Magazine HD (Gestion Admin)
+ * SEC : Kiosque Magazine HD — toutes écritures (upload, insert, delete Storage)
+ *       passent exclusivement par le serveur via SUPABASE_SERVICE_ROLE_KEY.
+ *       Multer reçoit les fichiers en multipart. Le client n'écrit plus jamais
+ *       directement dans Supabase pour le Kiosque.
  * -------------------------------------------------------------------
  */
 
@@ -18,6 +22,8 @@ const bcrypt = require('bcrypt');
 const rateLimit = require('express-rate-limit');
 const crypto = require('crypto');
 const path = require('path');
+const multer = require('multer');
+const { createClient } = require('@supabase/supabase-js');
 
 const { 
     pool, 
@@ -64,6 +70,26 @@ app.use((req, res, next) => {
     const userLog = req.body?.user_id ? `| User:${req.body.user_id}` : '';
     console.log(`[${new Date().toISOString()}] IP:${req.ip} ${req.method} ${req.url} ${userLog}`);
     next();
+});
+
+// ==========================================
+// SUPABASE ADMIN (service_role) — KIOSQUE HD
+// ==========================================
+const supabaseAdmin = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY
+);
+
+const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 10 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+        if (file.mimetype.startsWith('image/')) {
+            cb(null, true);
+        } else {
+            cb(new Error('Seules les images sont acceptées.'), false);
+        }
+    }
 });
 
 // ==========================================
@@ -265,7 +291,7 @@ app.get('/health', (req, res) => {
         success: true,
         status: 'UP',
         service: 'mike-edge-backend',
-        version: '11.17.5',
+        version: '11.18.0',
         timestamp: new Date().toISOString(),
         environment: process.env.NODE_ENV || 'development'
     });
@@ -490,7 +516,7 @@ app.get('/api/v1/magazines/:id/pages', async (req, res) => {
         return res.status(400).json({ success: false, code: 'ERR_INVALID_ID', message: "L'ID du magazine doit être un entier positif." });
     }
     try {
-        const query = 'SELECT page_number, image_url FROM magazine_pages WHERE magazine_id = $1 ORDER BY page_number ASC';
+        const query = 'SELECT id, page_number, image_url FROM magazine_pages WHERE magazine_id = $1 ORDER BY page_number ASC';
         const result = await pool.query(query, [magazineId]);
         res.json({ success: true, data: result.rows });
     } catch (err) {
@@ -499,9 +525,197 @@ app.get('/api/v1/magazines/:id/pages', async (req, res) => {
 });
 
 // ==========================================
-// KIOSQUE MAGAZINE HD — GESTION ADMIN (Claude)
+// KIOSQUE MAGAZINE HD — GESTION ADMIN (V11.18)
+// Toutes écritures passent par le serveur (service_role)
 // ==========================================
 
+// --- LISTE ADMIN (existante, inchangée) ---
+app.get('/api/v1/admin/magazines', readLimiter, verifyAdminKey, async (req, res) => {
+    try {
+        const query = `
+            SELECT m.id, m.title, m.edition_date, m.cover_url, m.is_active,
+                   COUNT(mp.id)::int as page_count
+            FROM magazines m
+            LEFT JOIN magazine_pages mp ON mp.magazine_id = m.id
+            WHERE m.is_active = true
+            GROUP BY m.id
+            ORDER BY m.edition_date DESC
+        `;
+        const result = await pool.query(query);
+        res.json({ success: true, data: result.rows });
+    } catch (err) {
+        console.error('❌ Erreur admin magazines:', err.message);
+        res.status(500).json({ success: false, code: 'ERR_FETCH_ADMIN_MAGAZINES' });
+    }
+});
+
+// --- CRÉATION ALBUM + UPLOAD COUVERTURE ---
+app.post('/api/v1/admin/magazines', mutationLimiter, verifyAdminKey, upload.single('cover'), async (req, res) => {
+    try {
+        const { title, edition_date } = req.body;
+        if (!title || !edition_date || !req.file) {
+            return res.status(400).json({ success: false, code: 'ERR_MISSING_FIELDS', message: 'Titre, date et couverture requis.' });
+        }
+
+        const countRes = await pool.query('SELECT COUNT(*) as cnt FROM magazines WHERE is_active = true');
+        if (parseInt(countRes.rows[0].cnt, 10) >= 6) {
+            return res.status(403).json({ success: false, code: 'ERR_ALBUM_LIMIT_REACHED', message: 'Limite de 6 albums atteinte.' });
+        }
+
+        const file = req.file;
+        const storagePath = `covers/${Date.now()}_${file.originalname}`;
+        const { error: upError } = await supabaseAdmin.storage.from('magazines').upload(storagePath, file.buffer, {
+            contentType: file.mimetype,
+            upsert: false
+        });
+        if (upError) {
+            console.error('❌ Erreur upload cover Storage:', upError.message);
+            throw new Error('Échec upload couverture');
+        }
+
+        const { data: urlData } = supabaseAdmin.storage.from('magazines').getPublicUrl(storagePath);
+        const coverUrl = urlData.publicUrl;
+
+        const insertRes = await pool.query(
+            'INSERT INTO magazines (title, edition_date, cover_url, is_active) VALUES ($1, $2, $3, true) RETURNING id, title, edition_date, cover_url, is_active',
+            [title.trim(), edition_date, coverUrl]
+        );
+
+        res.status(201).json({ success: true, data: insertRes.rows[0] });
+    } catch (err) {
+        console.error('❌ Erreur création album:', err.message);
+        res.status(500).json({ success: false, code: 'ERR_CREATE_ALBUM', message: err.message });
+    }
+});
+
+// --- AJOUT DE PAGES ---
+app.post('/api/v1/admin/magazines/:id/pages', mutationLimiter, verifyAdminKey, upload.array('pages', 10), async (req, res) => {
+    try {
+        const magazineId = parseInt(req.params.id, 10);
+        if (isNaN(magazineId) || magazineId <= 0) {
+            return res.status(400).json({ success: false, code: 'ERR_INVALID_ID' });
+        }
+        if (!req.files || req.files.length === 0) {
+            return res.status(400).json({ success: false, code: 'ERR_NO_FILES', message: 'Aucun fichier fourni.' });
+        }
+
+        const magCheck = await pool.query('SELECT id FROM magazines WHERE id = $1', [magazineId]);
+        if (magCheck.rows.length === 0) {
+            return res.status(404).json({ success: false, code: 'ERR_MAGAZINE_NOT_FOUND' });
+        }
+
+        const countRes = await pool.query('SELECT COUNT(*) as cnt FROM magazine_pages WHERE magazine_id = $1', [magazineId]);
+        const currentCount = parseInt(countRes.rows[0].cnt, 10);
+        if (currentCount + req.files.length > 10) {
+            return res.status(403).json({ success: false, code: 'ERR_PAGE_LIMIT_REACHED', message: `Dépassement : ${currentCount + req.files.length}/10 pages max.` });
+        }
+
+        const insertedPages = [];
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+            for (let i = 0; i < req.files.length; i++) {
+                const file = req.files[i];
+                const pageNum = currentCount + i + 1;
+                const storagePath = `pages/${magazineId}/${Date.now()}_p${pageNum}_${file.originalname}`;
+
+                const { error: upError } = await supabaseAdmin.storage.from('magazines').upload(storagePath, file.buffer, {
+                    contentType: file.mimetype,
+                    upsert: false
+                });
+                if (upError) throw upError;
+
+                const { data: urlData } = supabaseAdmin.storage.from('magazines').getPublicUrl(storagePath);
+                const imageUrl = urlData.publicUrl;
+
+                const pageRes = await client.query(
+                    'INSERT INTO magazine_pages (magazine_id, page_number, image_url) VALUES ($1, $2, $3) RETURNING id, page_number, image_url',
+                    [magazineId, pageNum, imageUrl]
+                );
+                insertedPages.push(pageRes.rows[0]);
+            }
+            await client.query('COMMIT');
+        } catch (err) {
+            await client.query('ROLLBACK').catch(() => {});
+            throw err;
+        } finally {
+            client.release();
+        }
+
+        res.status(201).json({ success: true, data: insertedPages });
+    } catch (err) {
+        console.error('❌ Erreur ajout pages:', err.message);
+        res.status(500).json({ success: false, code: 'ERR_ADD_PAGES', message: err.message });
+    }
+});
+
+// --- MODIFICATION INFOS ALBUM (existante, inchangée) ---
+app.put('/api/v1/magazines/:id', mutationLimiter, verifyAdminKey, async (req, res) => {
+    const magazineId = parseInt(req.params.id, 10);
+    const { title, edition_date } = req.body;
+    if (isNaN(magazineId) || magazineId <= 0) {
+        return res.status(400).json({ success: false, code: 'ERR_INVALID_ID' });
+    }
+    if (!title || !edition_date) {
+        return res.status(400).json({ success: false, code: 'ERR_MISSING_FIELDS' });
+    }
+    try {
+        const result = await pool.query(
+            'UPDATE magazines SET title = $1, edition_date = $2 WHERE id = $3 RETURNING id',
+            [title.trim(), edition_date, magazineId]
+        );
+        if (result.rows.length === 0) {
+            return res.status(404).json({ success: false, code: 'ERR_MAGAZINE_NOT_FOUND' });
+        }
+        res.json({ success: true });
+    } catch (err) {
+        console.error('❌ Erreur update magazine:', err.message);
+        res.status(500).json({ success: false, code: 'ERR_UPDATE_MAGAZINE' });
+    }
+});
+
+// --- SUPPRESSION ALBUM ENTIER + NETTOYAGE STORAGE ---
+app.delete('/api/v1/magazines/:id', mutationLimiter, verifyAdminKey, async (req, res) => {
+    const magazineId = parseInt(req.params.id, 10);
+    if (isNaN(magazineId) || magazineId <= 0) {
+        return res.status(400).json({ success: false, code: 'ERR_INVALID_ID' });
+    }
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        const magResult = await client.query('SELECT cover_url FROM magazines WHERE id = $1', [magazineId]);
+        if (magResult.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ success: false, code: 'ERR_MAGAZINE_NOT_FOUND' });
+        }
+        const pagesResult = await client.query('SELECT image_url FROM magazine_pages WHERE magazine_id = $1', [magazineId]);
+        const urlsToClean = [magResult.rows[0].cover_url, ...pagesResult.rows.map(r => r.image_url)].filter(Boolean);
+
+        await client.query('DELETE FROM magazine_pages WHERE magazine_id = $1', [magazineId]);
+        await client.query('DELETE FROM magazines WHERE id = $1', [magazineId]);
+        await client.query('COMMIT');
+
+        // Nettoyage Storage côté serveur
+        const pathsToRemove = urlsToClean.map(url => {
+            const m = url.match(/\/magazines\/(.+)$/);
+            return m ? m[1] : null;
+        }).filter(Boolean);
+        if (pathsToRemove.length > 0) {
+            const { error: delError } = await supabaseAdmin.storage.from('magazines').remove(pathsToRemove);
+            if (delError) console.error('❌ Erreur suppression Storage album:', delError.message);
+        }
+
+        res.json({ success: true });
+    } catch (err) {
+        await client.query('ROLLBACK');
+        console.error('❌ Erreur suppression album:', err.message);
+        res.status(500).json({ success: false, code: 'ERR_DELETE_MAGAZINE' });
+    } finally {
+        client.release();
+    }
+});
+
+// --- SUPPRESSION PAGE + RENUMÉROTATION + NETTOYAGE STORAGE ---
 app.delete('/api/v1/magazines/pages/:pageId', mutationLimiter, verifyAdminKey, async (req, res) => {
     const pageId = parseInt(req.params.pageId, 10);
     if (isNaN(pageId) || pageId <= 0) {
@@ -527,6 +741,13 @@ app.delete('/api/v1/magazines/pages/:pageId', mutationLimiter, verifyAdminKey, a
         );
         await client.query('COMMIT');
 
+        // Nettoyage Storage côté serveur
+        const pathMatch = image_url.match(/\/magazines\/(.+)$/);
+        if (pathMatch) {
+            const { error: delError } = await supabaseAdmin.storage.from('magazines').remove([pathMatch[1]]);
+            if (delError) console.error('❌ Erreur suppression Storage page:', delError.message);
+        }
+
         res.json({ success: true, deleted_url: image_url });
     } catch (err) {
         await client.query('ROLLBACK');
@@ -534,79 +755,6 @@ app.delete('/api/v1/magazines/pages/:pageId', mutationLimiter, verifyAdminKey, a
         res.status(500).json({ success: false, code: 'ERR_DELETE_PAGE' });
     } finally {
         client.release();
-    }
-});
-
-app.delete('/api/v1/magazines/:id', mutationLimiter, verifyAdminKey, async (req, res) => {
-    const magazineId = parseInt(req.params.id, 10);
-    if (isNaN(magazineId) || magazineId <= 0) {
-        return res.status(400).json({ success: false, code: 'ERR_INVALID_ID' });
-    }
-    const client = await pool.connect();
-    try {
-        await client.query('BEGIN');
-        const magResult = await client.query('SELECT cover_url FROM magazines WHERE id = $1', [magazineId]);
-        if (magResult.rows.length === 0) {
-            await client.query('ROLLBACK');
-            return res.status(404).json({ success: false, code: 'ERR_MAGAZINE_NOT_FOUND' });
-        }
-        const pagesResult = await client.query('SELECT image_url FROM magazine_pages WHERE magazine_id = $1', [magazineId]);
-        const urlsToClean = [magResult.rows[0].cover_url, ...pagesResult.rows.map(r => r.image_url)].filter(Boolean);
-
-        await client.query('DELETE FROM magazine_pages WHERE magazine_id = $1', [magazineId]);
-        await client.query('DELETE FROM magazines WHERE id = $1', [magazineId]);
-        await client.query('COMMIT');
-
-        res.json({ success: true, urls_to_clean: urlsToClean });
-    } catch (err) {
-        await client.query('ROLLBACK');
-        console.error('❌ Erreur suppression album:', err.message);
-        res.status(500).json({ success: false, code: 'ERR_DELETE_MAGAZINE' });
-    } finally {
-        client.release();
-    }
-});
-
-app.put('/api/v1/magazines/:id', mutationLimiter, verifyAdminKey, async (req, res) => {
-    const magazineId = parseInt(req.params.id, 10);
-    const { title, edition_date } = req.body;
-    if (isNaN(magazineId) || magazineId <= 0) {
-        return res.status(400).json({ success: false, code: 'ERR_INVALID_ID' });
-    }
-    if (!title || !edition_date) {
-        return res.status(400).json({ success: false, code: 'ERR_MISSING_FIELDS' });
-    }
-    try {
-        const result = await pool.query(
-            'UPDATE magazines SET title = $1, edition_date = $2 WHERE id = $3 RETURNING id',
-            [title.trim(), edition_date, magazineId]
-        );
-        if (result.rows.length === 0) {
-            return res.status(404).json({ success: false, code: 'ERR_MAGAZINE_NOT_FOUND' });
-        }
-        res.json({ success: true });
-    } catch (err) {
-        console.error('❌ Erreur update magazine:', err.message);
-        res.status(500).json({ success: false, code: 'ERR_UPDATE_MAGAZINE' });
-    }
-});
-
-app.get('/api/v1/admin/magazines', readLimiter, verifyAdminKey, async (req, res) => {
-    try {
-        const query = `
-            SELECT m.id, m.title, m.edition_date, m.cover_url, m.is_active,
-                   COUNT(mp.id)::int as page_count
-            FROM magazines m
-            LEFT JOIN magazine_pages mp ON mp.magazine_id = m.id
-            WHERE m.is_active = true
-            GROUP BY m.id
-            ORDER BY m.edition_date DESC
-        `;
-        const result = await pool.query(query);
-        res.json({ success: true, data: result.rows });
-    } catch (err) {
-        console.error('❌ Erreur admin magazines:', err.message);
-        res.status(500).json({ success: false, code: 'ERR_FETCH_ADMIN_MAGAZINES' });
     }
 });
 
@@ -735,6 +883,20 @@ app.post('/api/v1/notifications/push', mutationLimiter, verifyAdminKey, async (r
 // 6. HANDLERS D'ERREUR GLOBALES
 // ==========================================
 
+// Multer errors (doit précéder le 404)
+app.use((err, req, res, next) => {
+    if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+            return res.status(400).json({ success: false, code: 'ERR_FILE_TOO_LARGE', message: 'Fichier trop lourd (max 10Mo).' });
+        }
+        return res.status(400).json({ success: false, code: 'ERR_UPLOAD', message: err.message });
+    }
+    if (err && err.message === 'Seules les images sont acceptées.') {
+        return res.status(400).json({ success: false, code: 'ERR_INVALID_FILE_TYPE', message: err.message });
+    }
+    next(err);
+});
+
 app.use((req, res) => {
     res.status(404).json({ success: false, code: 'ERR_ROUTE_NOT_FOUND', message: 'Route non trouvée.' });
 });
@@ -749,7 +911,7 @@ app.use((err, req, res, next) => {
 // ==========================================
 
 const server = app.listen(PORT, () => {
-    console.log(`🟢 Serveur Mike Edge V11.17.5 connecté et démarré sur le port ${PORT}`);
+    console.log(`🟢 Serveur Mike Edge V11.18.0 connecté et démarré sur le port ${PORT}`);
 });
 
 const gracefulShutdown = async (signal) => {
