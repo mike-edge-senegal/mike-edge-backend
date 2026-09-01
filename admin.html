@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>🎛️ COCKPIT ADMIN — MIKE EDGE V11.18.2</title>
+<title>🎛️ COCKPIT ADMIN — MIKE EDGE V11.18.3</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <style>
@@ -139,7 +139,7 @@ th{background-color:rgba(212,175,55,0.1);color:var(--gold)}
 
 <div style="text-align:center;margin-bottom:16px;padding-top:10px;">
 <h1 style="font-size:20px;color:var(--gold);letter-spacing:1px;">🎛️ COCKPIT ADMIN MIKE EDGE</h1>
-<p style="font-size:11px;color:var(--text-muted);margin-top:2px;">V11.18.2</p>
+<p style="font-size:11px;color:var(--text-muted);margin-top:2px;">V11.18.3</p>
 <p id="apiUrlDisplay" style="font-size:10px;color:#666;margin-top:4px;"></p>
 </div>
 
@@ -246,6 +246,9 @@ th{background-color:rgba(212,175,55,0.1);color:var(--gold)}
 <span id="flashStatusText" style="font-size:11px;font-weight:800;color:var(--emerald-success);">🟢 ACTIVÉ</span>
 </div>
 <button id="toggleFlashBtn" class="btn btn-emerald" style="width:auto;padding:8px 14px;margin:0;font-size:12px;" data-action="toggle-flash">DÉSACTIVER</button>
+</div>
+<div id="flashPreviewContainer" style="margin-bottom:12px;display:none;text-align:center;">
+  <img id="flashPreview" style="width:100%;max-width:220px;border-radius:12px;border:2px solid var(--border-gold);display:block;margin:0 auto;aspect-ratio:9/16;object-fit:cover;background:var(--bg-elevated);" alt="Flash actuel">
 </div>
 <label class="label">Nouvelle Photo HD (9:16) :</label><input type="file" id="flashImageInput" accept="image/*" style="padding:8px;color:var(--text-muted);">
 <button class="btn btn-gold" id="uploadFlashBtn" data-action="upload-flash">📤 PUBLIER L'INFO FLASH</button>
@@ -776,6 +779,13 @@ async function loadFlashStatus(){
         if(j.success && j.data){
             isFlashActive = j.data.is_active;
             var st = document.getElementById('flashStatusText'), tb = document.getElementById('toggleFlashBtn');
+            var img = document.getElementById('flashPreview'), container = document.getElementById('flashPreviewContainer');
+            if(j.data.image_url){
+                img.src = j.data.image_url;
+                container.style.display = 'block';
+            } else {
+                container.style.display = 'none';
+            }
             if(isFlashActive){
                 st.textContent = "🟢 ACTIVÉ";
                 st.style.color = "var(--emerald-success)";
@@ -855,6 +865,11 @@ async function uploadFlashInfo(){
         
         showToast("⚡ Flash publié !",'success');
         document.getElementById('flashImageInput').value = '';
+        var img = document.getElementById('flashPreview'), container = document.getElementById('flashPreviewContainer');
+        if(j.data && j.data.image_url){
+            img.src = j.data.image_url;
+            container.style.display = 'block';
+        }
         
         // Mettre à jour l'état visuel si le flash était inactif
         if(!isFlashActive){
@@ -1539,4 +1554,4 @@ async function publierFiche(){
 }
 </script>
 </body>
-    </html>
+  </html>
