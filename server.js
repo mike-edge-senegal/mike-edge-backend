@@ -1,5 +1,5 @@
 /**
- * 🏆 PROJET MIKE EDGE - SERVER.JS (V11.18.3)
+ * 🏆 PROJET MIKE EDGE - SERVER.JS (V11.18.4)
  * -------------------------------------------------------------------
  * FIX : category_override passé à savePublicationTransaction
  * FIX : Classement par IRG décroissant (ORDER BY m.irg_index DESC)
@@ -19,6 +19,13 @@
  *                (colonne inexistante dans la table flash_infos).
  * FIX V11.18.3 : Aperçu visuel de la photo flash dans admin.html (côté client)
  *                La route POST renvoie image_url et is_active.
+ * FIX V11.18.3 : Module Ticket de Session HD — routes GET et POST,
+ *                nettoyage Storage, logique défensive.
+ * FIX V11.18.3 : Ajout de mutationLimiter sur la route POST session-ticket.
+ * FIX V11.18.4 : Inversion ordre des opérations Ticket (upload → DB → COMMIT → suppression)
+ *                Évite la perte définitive de la photo si l'upload échoue.
+ * FIX V11.18.4 : Retrait updated_at dans l'upsert session_ticket (cohérence Flash).
+ * FIX V11.18.4 : Ajout is_active:true dans la réponse POST session-ticket.
  * -------------------------------------------------------------------
  */
 
@@ -81,7 +88,7 @@ app.use((req, res, next) => {
 });
 
 // ==========================================
-// SUPABASE ADMIN (service_role) — KIOSQUE HD / FLASH HD
+// SUPABASE ADMIN (service_role) — KIOSQUE HD / FLASH HD / TICKET HD
 // ==========================================
 const supabaseAdmin = createClient(
     process.env.SUPABASE_URL,
@@ -299,7 +306,7 @@ app.get('/health', (req, res) => {
         success: true,
         status: 'UP',
         service: 'mike-edge-backend',
-        version: '11.18.3',
+        version: '11.18.4',
         timestamp: new Date().toISOString(),
         environment: process.env.NODE_ENV || 'development'
     });
@@ -864,6 +871,103 @@ app.put('/api/v1/admin/flash-info/status', mutationLimiter, verifyAdminKey, asyn
     }
 });
 
+// ============================================
+// MODULE 4 — TICKET DE SESSION HD (V11.18.4)
+// ============================================
+
+// GET — Récupérer le ticket actuel (pour la preview admin)
+app.get('/api/v1/admin/session-ticket', async (req, res) => {
+    try {
+        const result = await pool.query(
+            "SELECT value FROM system_configs WHERE key = 'session_ticket_url'"
+        );
+        if (result.rows.length === 0) {
+            return res.json({ success: true, data: null });
+        }
+        res.json({ success: true, data: { image_url: result.rows[0].value } });
+    } catch (err) {
+        console.error('[ADMIN SESSION TICKET GET]', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// POST — Publier / remplacer le ticket (avec mutationLimiter)
+// 🔧 FIX V11.18.4 : Ordre corrigé — upload nouveau → upsert DB → COMMIT → suppression ancienne (hors transaction)
+//                   + Retrait de updated_at (cohérence Flash)
+app.post('/api/v1/admin/session-ticket', mutationLimiter, verifyAdminKey, upload.single('photo'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ success: false, message: 'Aucune image fournie.' });
+        }
+
+        const client = await pool.connect();
+        let oldUrl = null;
+        let newPublicUrl = null;
+
+        try {
+            await client.query('BEGIN');
+
+            // 1. Récupérer l'ancien ticket (pour nettoyage post-succès)
+            const oldResult = await client.query(
+                "SELECT value FROM system_configs WHERE key = 'session_ticket_url'"
+            );
+            oldUrl = oldResult.rows[0]?.value || null;
+
+            // 2. Upload nouvelle photo D'ABORD
+            const fileExt = req.file.originalname.split('.').pop() || 'jpg';
+            const fileName = `session_tickets/${Date.now()}_${Math.random().toString(36).substring(2, 10)}.${fileExt}`;
+
+            const { error: uploadError } = await supabaseAdmin.storage
+                .from('tickets')
+                .upload(fileName, req.file.buffer, {
+                    contentType: req.file.mimetype,
+                    upsert: false
+                });
+
+            if (uploadError) throw new Error('Upload échoué: ' + uploadError.message);
+
+            // 3. Récupérer l'URL publique
+            const { data: publicUrlData } = supabaseAdmin.storage
+                .from('tickets')
+                .getPublicUrl(fileName);
+            newPublicUrl = publicUrlData.publicUrl;
+
+            // 4. Upsert en base (une seule ligne, clé unique) — sans updated_at (cohérence Flash)
+            await client.query(
+                `INSERT INTO system_configs (key, value) VALUES ('session_ticket_url', $1)
+                 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
+                [newPublicUrl]
+            );
+
+            await client.query('COMMIT');
+        } catch (err) {
+            await client.query('ROLLBACK');
+            throw err;
+        } finally {
+            client.release();
+        }
+
+        // 5. Nettoyage best-effort de l'ancienne photo (APRÈS succès DB, hors transaction)
+        if (oldUrl) {
+            try {
+                const pathMatch = oldUrl.split('/tickets/');
+                if (pathMatch.length > 1) {
+                    const oldPath = pathMatch.slice(1).join('/tickets/');
+                    await supabaseAdmin.storage.from('tickets').remove([oldPath]);
+                    console.log('[TICKET] Ancienne photo supprimée:', oldPath);
+                }
+            } catch (delErr) {
+                console.warn('[TICKET] Échec suppression ancienne photo (non bloquant):', delErr.message);
+            }
+        }
+
+        res.json({ success: true, data: { image_url: newPublicUrl, is_active: true } });
+    } catch (err) {
+        console.error('[ADMIN SESSION TICKET POST]', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
 // ==========================================
 // 4. WEBHOOK PAIEMENT
 // ==========================================
@@ -1017,7 +1121,7 @@ app.use((err, req, res, next) => {
 // ==========================================
 
 const server = app.listen(PORT, () => {
-    console.log(`🟢 Serveur Mike Edge V11.18.3 connecté et démarré sur le port ${PORT}`);
+    console.log(`🟢 Serveur Mike Edge V11.18.4 connecté et démarré sur le port ${PORT}`);
 });
 
 const gracefulShutdown = async (signal) => {
