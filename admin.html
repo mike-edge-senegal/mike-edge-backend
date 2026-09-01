@@ -807,7 +807,7 @@ async function toggleFlashStatus(){
     var adminKey; try{adminKey=getAdminKey()}catch(e){showToast(e.message);return}
     setLoading(true,'MISE À JOUR...');
     try{
-        var currentActive = document.getElementById('flashStatusText').textContent.indexOf('ACTIVÉ') !== -1;
+        var currentActive = isFlashActive;  // 🔧 FIX V11.18.3 : utiliser la variable globale
         var r = await fetch(API_BASE+'/admin/flash-info/status', {
             method: 'PUT',
             headers: {'Content-Type':'application/json','x-admin-key':adminKey},
