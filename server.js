@@ -1,5 +1,5 @@
 /**
- * 🏆 PROJET MIKE EDGE - SERVER.JS (V11.18.0)
+ * 🏆 PROJET MIKE EDGE - SERVER.JS (V11.18.2)
  * -------------------------------------------------------------------
  * FIX : category_override passé à savePublicationTransaction
  * FIX : Classement par IRG décroissant (ORDER BY m.irg_index DESC)
@@ -11,6 +11,10 @@
  *       passent exclusivement par le serveur via SUPABASE_SERVICE_ROLE_KEY.
  *       Multer reçoit les fichiers en multipart. Le client n'écrit plus jamais
  *       directement dans Supabase pour le Kiosque.
+ * FIX : Info Flash HD — toutes écritures passent par le serveur (service_role)
+ *       Logique défensive : upload → UPDATE → suppression ancienne.
+ *       Routes GET /admin/flash-info/status, POST /admin/flash-info,
+ *       PUT /admin/flash-info/status.
  * -------------------------------------------------------------------
  */
 
@@ -73,7 +77,7 @@ app.use((req, res, next) => {
 });
 
 // ==========================================
-// SUPABASE ADMIN (service_role) — KIOSQUE HD
+// SUPABASE ADMIN (service_role) — KIOSQUE HD / FLASH HD
 // ==========================================
 const supabaseAdmin = createClient(
     process.env.SUPABASE_URL,
@@ -291,7 +295,7 @@ app.get('/health', (req, res) => {
         success: true,
         status: 'UP',
         service: 'mike-edge-backend',
-        version: '11.18.0',
+        version: '11.18.2',
         timestamp: new Date().toISOString(),
         environment: process.env.NODE_ENV || 'development'
     });
@@ -759,6 +763,104 @@ app.delete('/api/v1/magazines/pages/:pageId', mutationLimiter, verifyAdminKey, a
 });
 
 // ==========================================
+// INFO FLASH HD — GESTION ADMIN (V11.18.2)
+// Toutes écritures passent par le serveur (service_role)
+// Logique défensive : upload → UPDATE → suppression ancienne
+// ==========================================
+
+// --- LECTURE STATUT (public, pour initialisation client) ---
+app.get('/api/v1/admin/flash-info/status', async (req, res) => {
+    try {
+        const result = await pool.query('SELECT is_active, image_url FROM flash_infos LIMIT 1');
+        if (result.rows.length === 0) {
+            return res.json({ success: true, data: { is_active: false, image_url: null } });
+        }
+        res.json({ success: true, data: { is_active: result.rows[0].is_active, image_url: result.rows[0].image_url } });
+    } catch (err) {
+        console.error('❌ Erreur lecture statut flash:', err.message);
+        res.status(500).json({ success: false, code: 'ERR_READ_FLASH_STATUS' });
+    }
+});
+
+// --- PUBLICATION / MISE À JOUR FLASH (upload photo + UPDATE unique) ---
+app.post('/api/v1/admin/flash-info', mutationLimiter, verifyAdminKey, upload.single('photo'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ success: false, code: 'ERR_NO_FILE', message: 'Photo requise.' });
+        }
+
+        const file = req.file;
+        const storagePath = `flash/${Date.now()}_${file.originalname}`;
+
+        // 1. Récupérer l'ancienne ligne (pour nettoyage post-UPDATE)
+        const oldRes = await pool.query('SELECT image_url FROM flash_infos LIMIT 1');
+        const oldImageUrl = oldRes.rows.length > 0 ? oldRes.rows[0].image_url : null;
+
+        // 2. Upload nouvelle photo
+        const { error: upError } = await supabaseAdmin.storage.from('magazines').upload(storagePath, file.buffer, {
+            contentType: file.mimetype,
+            upsert: false
+        });
+        if (upError) {
+            console.error('❌ Erreur upload flash Storage:', upError.message);
+            throw new Error('Échec upload photo flash');
+        }
+
+        const { data: urlData } = supabaseAdmin.storage.from('magazines').getPublicUrl(storagePath);
+        const imageUrl = urlData.publicUrl;
+
+        // 3. UPDATE ou INSERT (une seule ligne toujours)
+        if (oldRes.rows.length > 0) {
+            await pool.query(
+                'UPDATE flash_infos SET title = $1, message = $2, image_url = $3, is_active = $4, updated_at = NOW()',
+                ['Info Flash', 'Flash direct', imageUrl, true]
+            );
+        } else {
+            await pool.query(
+                'INSERT INTO flash_infos (title, message, image_url, is_active) VALUES ($1, $2, $3, $4)',
+                ['Info Flash', 'Flash direct', imageUrl, true]
+            );
+        }
+
+        // 4. Nettoyage best-effort de l'ancienne photo (après succès DB)
+        if (oldImageUrl) {
+            const pathMatch = oldImageUrl.match(/\/magazines\/(.+)$/);
+            if (pathMatch) {
+                const { error: delError } = await supabaseAdmin.storage.from('magazines').remove([pathMatch[1]]);
+                if (delError) console.error('❌ Erreur suppression ancienne photo flash:', delError.message);
+            }
+        }
+
+        res.status(200).json({ success: true, data: { image_url: imageUrl, is_active: true } });
+    } catch (err) {
+        console.error('❌ Erreur publication flash:', err.message);
+        res.status(500).json({ success: false, code: 'ERR_PUBLISH_FLASH', message: err.message });
+    }
+});
+
+// --- ACTIVATION / DÉSACTIVATION FLASH ---
+app.put('/api/v1/admin/flash-info/status', mutationLimiter, verifyAdminKey, async (req, res) => {
+    try {
+        const { is_active } = req.body;
+        if (typeof is_active !== 'boolean') {
+            return res.status(400).json({ success: false, code: 'ERR_INVALID_STATUS', message: 'is_active doit être un booléen.' });
+        }
+
+        const oldRes = await pool.query('SELECT id FROM flash_infos LIMIT 1');
+        if (oldRes.rows.length === 0) {
+            return res.status(404).json({ success: false, code: 'ERR_NO_FLASH', message: 'Aucun flash info existant. Publiez une photo d\'abord.' });
+        }
+
+        await pool.query('UPDATE flash_infos SET is_active = $1, updated_at = NOW()', [is_active]);
+
+        res.json({ success: true, data: { is_active: is_active } });
+    } catch (err) {
+        console.error('❌ Erreur toggle flash status:', err.message);
+        res.status(500).json({ success: false, code: 'ERR_TOGGLE_FLASH', message: err.message });
+    }
+});
+
+// ==========================================
 // 4. WEBHOOK PAIEMENT
 // ==========================================
 
@@ -911,7 +1013,7 @@ app.use((err, req, res, next) => {
 // ==========================================
 
 const server = app.listen(PORT, () => {
-    console.log(`🟢 Serveur Mike Edge V11.18.0 connecté et démarré sur le port ${PORT}`);
+    console.log(`🟢 Serveur Mike Edge V11.18.2 connecté et démarré sur le port ${PORT}`);
 });
 
 const gracefulShutdown = async (signal) => {
