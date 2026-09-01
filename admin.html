@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>🎛️ COCKPIT ADMIN — MIKE EDGE V11.18.3</title>
+<title>🎛️ COCKPIT ADMIN — MIKE EDGE V11.18.4</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <style>
@@ -139,7 +139,7 @@ th{background-color:rgba(212,175,55,0.1);color:var(--gold)}
 
 <div style="text-align:center;margin-bottom:16px;padding-top:10px;">
 <h1 style="font-size:20px;color:var(--gold);letter-spacing:1px;">🎛️ COCKPIT ADMIN MIKE EDGE</h1>
-<p style="font-size:11px;color:var(--text-muted);margin-top:2px;">V11.18.3</p>
+<p style="font-size:11px;color:var(--text-muted);margin-top:2px;">V11.18.4</p>
 <p id="apiUrlDisplay" style="font-size:10px;color:#666;margin-top:4px;"></p>
 </div>
 
@@ -254,11 +254,29 @@ th{background-color:rgba(212,175,55,0.1);color:var(--gold)}
 <button class="btn btn-gold" id="uploadFlashBtn" data-action="upload-flash">📤 PUBLIER L'INFO FLASH</button>
 </div>
 
-<div class="card">
-<div class="card-title"><span>4. TICKET DE SESSION HD</span></div>
-<label class="label">Image 9:16 :</label><input type="file" id="sessionTicketInput" accept="image/*" style="padding:8px;color:var(--text-muted);">
-<button class="btn btn-gold" id="uploadTicketBtn" onclick="uploadSessionTicket()">💾 PUBLIER LES TICKETS</button>
+
+<!-- ========================================================== -->
+<!-- 4. TICKET DE SESSION HD — CORRIGÉ (tactile fiable + serveur) -->
+<!-- ========================================================== -->
+<div class="card" id="ticketCard">
+  <div class="card-title"><span>4. TICKET DE SESSION HD</span></div>
+  
+  <div style="display:flex;align-items:center;justify-content:space-between;background:rgba(13,17,23,0.8);padding:12px;border-radius:10px;border:1px solid var(--border-gold);margin-bottom:12px;">
+    <div>
+      <span class="label" style="margin-bottom:2px;">STATUS :</span>
+      <span id="ticketStatusText" style="font-size:11px;font-weight:800;color:var(--text-muted);">⚪ AUCUN TICKET</span>
+    </div>
+  </div>
+  
+  <div id="ticketPreviewContainer" style="margin-bottom:12px;display:none;text-align:center;">
+    <img id="ticketPreview" style="width:100%;max-width:260px;border-radius:12px;border:2px solid var(--border-gold);display:block;margin:0 auto;aspect-ratio:9/16;object-fit:cover;background:var(--bg-elevated);" alt="Ticket actuel">
+  </div>
+  
+  <label class="label">Nouvelle Photo HD (9:16) :</label>
+  <input type="file" id="sessionTicketInput" accept="image/*" style="padding:8px;color:var(--text-muted);">
+  <button class="btn btn-gold" id="uploadTicketBtn" data-action="upload-session-ticket">💾 PUBLIER LE TICKET</button>
 </div>
+
 
 <div class="card">
 <div class="card-title"><span>5. STATISTIQUES VRP</span></div>
@@ -344,6 +362,7 @@ window.addEventListener('DOMContentLoaded', async function(){
     banner.textContent = '⏳ ÉTAPE 1/3 : Serveur Render...';
     loadKioskList();
     loadFlashStatus();
+    loadTicketStatus();
 
     try {
         var res = await fetch(window.location.origin + '/health');
@@ -905,29 +924,86 @@ document.getElementById('flashCard').addEventListener('touchstart', flashHandleA
 // ============================================
 
 // ============================================
-// TICKET SESSION — AVEC COMPRESSION AUTO
+// TICKET DE SESSION HD — CORRIGÉ (tactile fiable + serveur)
 // ============================================
-async function uploadSessionTicket(){
-    var file=document.getElementById('sessionTicketInput').files[0],adminKey;
-    try{adminKey=getAdminKey()}catch(e){showToast(e.message);return}
-    var e=validateImageFile(file);if(e){showToast(e);return}
-    
-    setLoading(true,'COMPRESSION & TÉLÉVERSEMENT...');
-    
-    try{
-        // Compression auto
-        try{
-            var compressed=await compressImage(file,{maxWidth:1080,quality:0.8});
-            file=compressed;
-        }catch(err){console.warn('[COMPRESS] Ticket fallback original');}
-        
-        var fn='session_tickets/'+Date.now()+'_'+file.name;
-        await supabaseClient.storage.from('tickets').upload(fn,file);
-        var d=await supabaseClient.storage.from('tickets').getPublicUrl(fn);
-        await supabaseClient.from('system_configs').upsert([{key:'session_ticket_url',value:d.data.publicUrl}],{onConflict:'key'});
-        showToast("🎉 Ticket publié !",'success');document.getElementById('sessionTicketInput').value='';
-    }catch(e){showToast("Erreur: "+e.message)}finally{setLoading(false)}
+async function loadTicketStatus(){
+    try {
+        var r = await fetch(API_BASE + '/admin/session-ticket', { method: 'GET' });
+        if(!r.ok) return;
+        var j = await r.json();
+        if(j.success && j.data && j.data.image_url){
+            var img = document.getElementById('ticketPreview');
+            var container = document.getElementById('ticketPreviewContainer');
+            img.src = j.data.image_url;
+            container.style.display = 'block';
+            document.getElementById('ticketStatusText').textContent = '🟢 PUBLIÉ';
+            document.getElementById('ticketStatusText').style.color = 'var(--emerald-success)';
+        } else {
+            document.getElementById('ticketStatusText').textContent = '⚪ AUCUN TICKET';
+            document.getElementById('ticketStatusText').style.color = 'var(--text-muted)';
+            document.getElementById('ticketPreviewContainer').style.display = 'none';
+        }
+    } catch(e) { console.warn('[TICKET] Impossible de charger le statut:', e.message); }
 }
+
+async function uploadSessionTicket(){
+    var file = document.getElementById('sessionTicketInput').files[0];
+    var adminKey;
+    try { adminKey = getAdminKey(); } catch(e) { showToast(e.message); return; }
+    var err = validateImageFile(file);
+    if(err){ showToast(err); return; }
+
+    setLoading(true, 'COMPRESSION & PUBLICATION...');
+
+    try {
+        // 🔧 FIX V11.18.4 : fallback si compression échoue (même patron que Flash)
+        try {
+            var compressed = await compressImage(file, {maxWidth: 1080, quality: 0.8});
+            file = compressed;
+        } catch(compErr) {
+            console.warn('[COMPRESS] Ticket fallback original');
+        }
+
+        var formData = new FormData();
+        formData.append('photo', file, file.name);
+
+        var r = await fetch(API_BASE + '/admin/session-ticket', {
+            method: 'POST',
+            headers: { 'x-admin-key': adminKey },
+            body: formData
+        });
+        var j = await r.json();
+        if(!r.ok || !j.success) throw new Error(j.message || 'Échec publication ticket');
+
+        showToast("🎉 Ticket publié !", 'success');
+        document.getElementById('sessionTicketInput').value = '';
+
+        var img = document.getElementById('ticketPreview');
+        var container = document.getElementById('ticketPreviewContainer');
+        if(j.data && j.data.image_url){
+            img.src = j.data.image_url;
+            container.style.display = 'block';
+            document.getElementById('ticketStatusText').textContent = '🟢 PUBLIÉ';
+            document.getElementById('ticketStatusText').style.color = 'var(--emerald-success)';
+        }
+    } catch(e) { showToast("Erreur: " + e.message); }
+    finally { setLoading(false); }
+}
+
+function ticketHandleAction(e){
+    var el = e.target.closest('[data-action]');
+    if(!el || !document.getElementById('ticketCard').contains(el)) return;
+    e.preventDefault(); e.stopPropagation();
+    var action = el.getAttribute('data-action');
+    switch(action){
+        case 'upload-session-ticket': uploadSessionTicket(); break;
+    }
+}
+document.getElementById('ticketCard').addEventListener('click', ticketHandleAction);
+document.getElementById('ticketCard').addEventListener('touchstart', ticketHandleAction, {passive: false});
+// ============================================
+// FIN TICKET DE SESSION HD
+// ============================================
 
 async function loadVrpPerformance(){
     var adminKey;try{adminKey=getAdminKey()}catch(e){showToast(e.message);return}
