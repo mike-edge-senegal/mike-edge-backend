@@ -1,5 +1,5 @@
 /**
- * 🏆 PROJET MIKE EDGE - SERVER.JS (V11.18.2)
+ * 🏆 PROJET MIKE EDGE - SERVER.JS (V11.18.3)
  * -------------------------------------------------------------------
  * FIX : category_override passé à savePublicationTransaction
  * FIX : Classement par IRG décroissant (ORDER BY m.irg_index DESC)
@@ -15,6 +15,10 @@
  *       Logique défensive : upload → UPDATE → suppression ancienne.
  *       Routes GET /admin/flash-info/status, POST /admin/flash-info,
  *       PUT /admin/flash-info/status.
+ * FIX V11.18.3 : Suppression des références à updated_at dans les routes flash
+ *                (colonne inexistante dans la table flash_infos).
+ * FIX V11.18.3 : Aperçu visuel de la photo flash dans admin.html (côté client)
+ *                La route POST renvoie image_url et is_active.
  * -------------------------------------------------------------------
  */
 
@@ -295,7 +299,7 @@ app.get('/health', (req, res) => {
         success: true,
         status: 'UP',
         service: 'mike-edge-backend',
-        version: '11.18.2',
+        version: '11.18.3',
         timestamp: new Date().toISOString(),
         environment: process.env.NODE_ENV || 'development'
     });
@@ -809,10 +813,10 @@ app.post('/api/v1/admin/flash-info', mutationLimiter, verifyAdminKey, upload.sin
         const { data: urlData } = supabaseAdmin.storage.from('magazines').getPublicUrl(storagePath);
         const imageUrl = urlData.publicUrl;
 
-        // 3. UPDATE ou INSERT (une seule ligne toujours)
+        // 3. UPDATE ou INSERT (une seule ligne toujours) — sans updated_at
         if (oldRes.rows.length > 0) {
             await pool.query(
-                'UPDATE flash_infos SET title = $1, message = $2, image_url = $3, is_active = $4, updated_at = NOW()',
+                'UPDATE flash_infos SET title = $1, message = $2, image_url = $3, is_active = $4',
                 ['Info Flash', 'Flash direct', imageUrl, true]
             );
         } else {
@@ -838,7 +842,7 @@ app.post('/api/v1/admin/flash-info', mutationLimiter, verifyAdminKey, upload.sin
     }
 });
 
-// --- ACTIVATION / DÉSACTIVATION FLASH ---
+// --- ACTIVATION / DÉSACTIVATION FLASH (sans updated_at) ---
 app.put('/api/v1/admin/flash-info/status', mutationLimiter, verifyAdminKey, async (req, res) => {
     try {
         const { is_active } = req.body;
@@ -851,7 +855,7 @@ app.put('/api/v1/admin/flash-info/status', mutationLimiter, verifyAdminKey, asyn
             return res.status(404).json({ success: false, code: 'ERR_NO_FLASH', message: 'Aucun flash info existant. Publiez une photo d\'abord.' });
         }
 
-        await pool.query('UPDATE flash_infos SET is_active = $1, updated_at = NOW()', [is_active]);
+        await pool.query('UPDATE flash_infos SET is_active = $1', [is_active]);
 
         res.json({ success: true, data: { is_active: is_active } });
     } catch (err) {
@@ -1013,7 +1017,7 @@ app.use((err, req, res, next) => {
 // ==========================================
 
 const server = app.listen(PORT, () => {
-    console.log(`🟢 Serveur Mike Edge V11.18.2 connecté et démarré sur le port ${PORT}`);
+    console.log(`🟢 Serveur Mike Edge V11.18.3 connecté et démarré sur le port ${PORT}`);
 });
 
 const gracefulShutdown = async (signal) => {
