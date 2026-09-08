@@ -1,5 +1,5 @@
 /**
- * 🏆 PROJET MIKE EDGE - SERVER.JS (V11.18.4)
+ * 🏆 PROJET MIKE EDGE - SERVER.JS (V11.18.6 GS FUNCTIONAL)
  * -------------------------------------------------------------------
  * FIX : category_override passé à savePublicationTransaction
  * FIX : Classement par IRG décroissant (ORDER BY m.irg_index DESC)
@@ -26,6 +26,17 @@
  *                Évite la perte définitive de la photo si l'upload échoue.
  * FIX V11.18.4 : Retrait updated_at dans l'upsert session_ticket (cohérence Flash).
  * FIX V11.18.4 : Ajout is_active:true dans la réponse POST session-ticket.
+ * FIX V11.18.5 : Suppression de la dépendance à la table payments dans la route login.
+ *                Suppression de paid_referrals_count du résultat de login.
+ *                Suppression de la logique 3/6/9 de récompense dans la route VRP.
+ *                Suppression de la logique de récompense client-parrain dans le webhook.
+ *                Conservation de referred_by_id pour le rattachement VRP uniquement.
+ * FIX V11.18.6 : RESTAURATION de la route POST /api/v1/auth/register (absente dans V11.18.5).
+ *                CORRECTION de /matches/:category pour gérer le cas sans session active.
+ *                CONSERVATION de l'architecture webhook paiement (isolée de la phase test).
+ *                CONFIRMATION : AUCUNE modification Supabase, AUCUNE création de table payments.
+ * FIX V11.18.6 : Adaptation de register pour accepter vrp_code (au lieu de referral_code)
+ *                en conservant referral_code comme alias pour compatibilité.
  * -------------------------------------------------------------------
  */
 
@@ -158,6 +169,66 @@ function verifyAdminKey(req, res, next) {
 // 1. AUTHENTIFICATION
 // ==========================================
 
+// --- REGISTER (restauré V11.18.6) ---
+app.post('/api/v1/auth/register', mutationLimiter, async (req, res) => {
+    const { phone, password, vrp_code, referral_code } = req.body;
+
+    if (!phone || typeof phone !== 'string' || phone.trim().length < 8 || !password) {
+        return res.status(400).json({ success: false, code: 'ERR_INVALID_CREDENTIALS_FORMAT' });
+    }
+
+    if (password.length < 6) {
+        return res.status(400).json({ success: false, code: 'ERR_PASSWORD_TOO_SHORT', message: 'Mot de passe trop court (minimum 6 caractères).' });
+    }
+
+    try {
+        // Vérifier si l'utilisateur existe déjà
+        const existingUser = await pool.query('SELECT id FROM users WHERE phone = $1', [phone.trim()]);
+        if (existingUser.rows.length > 0) {
+            return res.status(409).json({ success: false, code: 'ERR_USER_EXISTS', message: 'Ce numéro est déjà enregistré.' });
+        }
+
+        // 🔧 V11.18.6 : Accepter vrp_code (contrat APK) ou referral_code (compatibilité)
+        const codeToUse = vrp_code || referral_code || null;
+        let referredById = null;
+        
+        if (codeToUse) {
+            const vrpResult = await pool.query(
+                'SELECT id FROM users WHERE referral_code = $1 AND role = $2',
+                [codeToUse, 'VRP']
+            );
+            if (vrpResult.rows.length > 0) {
+                referredById = vrpResult.rows[0].id;
+                console.log('[REGISTER] VRP rattaché avec le code:', codeToUse);
+            } else {
+                // Code VRP invalide → on ignore (pas d'erreur bloquante pour la phase test)
+                console.warn('[REGISTER] Code VRP invalide:', codeToUse);
+            }
+        }
+
+        const saltRounds = 12;
+        const hashedPassword = await bcrypt.hash(password, saltRounds);
+
+        // Générer un referral_code unique pour le nouvel utilisateur
+        const newReferralCode = 'ME' + Date.now().toString(36).toUpperCase() + Math.random().toString(36).substring(2, 6).toUpperCase();
+
+        const insertResult = await pool.query(
+            `INSERT INTO users (phone, password_hash, role, status, referral_code, referred_by_id, subscription_expiry)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)
+             RETURNING id, phone, role, status, referral_code, subscription_expiry`,
+            [phone.trim(), hashedPassword, 'USER', 'ACTIVE', newReferralCode, referredById, new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)]
+        );
+
+        const newUser = insertResult.rows[0];
+        delete newUser.password_hash;
+
+        res.status(201).json({ success: true, user: newUser });
+    } catch (err) {
+        console.error('❌ Erreur Register:', err.message);
+        res.status(500).json({ success: false, code: 'ERR_DB_REGISTER' });
+    }
+});
+
 app.post('/api/v1/auth/login', mutationLimiter, async (req, res) => {
     const { phone, password } = req.body;
 
@@ -166,15 +237,10 @@ app.post('/api/v1/auth/login', mutationLimiter, async (req, res) => {
     }
 
     try {
+        // 🔧 V11.18.5 : Suppression de la sous-requête payments et du champ paid_referrals_count
         const query = `
             SELECT 
-                u.id, u.role, u.status, u.phone, u.password_hash, u.subscription_expiry, u.referral_code,
-                (
-                    SELECT COUNT(DISTINCT p.user_id) 
-                    FROM payments p 
-                    JOIN users f ON p.user_id = f.id 
-                    WHERE f.referred_by_id = u.id AND p.status = 'SUCCESS'
-                ) as paid_referrals_count
+                u.id, u.role, u.status, u.phone, u.password_hash, u.subscription_expiry, u.referral_code
             FROM users u 
             WHERE u.phone = $1
         `;
@@ -191,7 +257,6 @@ app.post('/api/v1/auth/login', mutationLimiter, async (req, res) => {
         }
 
         delete user.password_hash;
-        user.paid_referrals_count = parseInt(user.paid_referrals_count || 0, 10);
 
         res.json({ success: true, user });
     } catch (err) {
@@ -306,7 +371,7 @@ app.get('/health', (req, res) => {
         success: true,
         status: 'UP',
         service: 'mike-edge-backend',
-        version: '11.18.4',
+        version: '11.18.6',
         timestamp: new Date().toISOString(),
         environment: process.env.NODE_ENV || 'development'
     });
@@ -350,11 +415,11 @@ app.get('/api/v1/vrp/stats', readLimiter, verifyAdminKey, async (req, res) => {
             const countRes = await pool.query(countQuery, [vrp.user_id]);
             const total = parseInt(countRes.rows[0].total, 10);
 
+            // 🔧 V11.18.5 : Suppression de la logique 3/6/9 (earned_days)
             results.push({
                 vrp_code: vrp.vrp_code,
                 zone: vrp.zone || 'N/A',
-                active_subscribers: total,
-                earned_days: Math.min(3, Math.floor(total / 3)) * 30
+                active_subscribers: total
             });
         }
 
@@ -367,6 +432,7 @@ app.get('/api/v1/vrp/stats', readLimiter, verifyAdminKey, async (req, res) => {
 
 // ==========================================
 // 🔧 V11.17.5 FIX : CAST match_id::integer + SESSION ACTIVE + FILTRE SESSION_ID
+// 🔧 V11.18.6 : CORRECTION du cas sans session active
 // ==========================================
 app.get('/api/v1/matches/:category', async (req, res) => {
     const category = req.params.category.toUpperCase();
@@ -424,16 +490,21 @@ app.get('/api/v1/matches/:category', async (req, res) => {
                 can_import: activeCount < maxQuota
             };
         } else {
-            // Aucune session active → import autorisé
-            session = {
-                id: null,
-                number: null,
-                status: 'NONE',
-                current_count: 0,
-                max_quota: maxQuota,
-                remaining_slots: maxQuota,
-                can_import: true
-            };
+            // Aucune session active → retourner une liste vide + session NONE
+            console.log('[API] Aucune session active pour', category);
+            return res.json({
+                success: true,
+                data: [],
+                session: {
+                    id: null,
+                    number: null,
+                    status: 'NONE',
+                    current_count: 0,
+                    max_quota: maxQuota,
+                    remaining_slots: maxQuota,
+                    can_import: true
+                }
+            });
         }
         
         console.log('[API] Session active pour', category, ':', session);
@@ -441,7 +512,6 @@ app.get('/api/v1/matches/:category', async (req, res) => {
         // =============================================
         // 2. RÉCUPÉRER LES MATCHS DE LA SESSION ACTIVE UNIQUEMENT
         // =============================================
-        // 🔧 FIX CLAUDE : Filtrer par session_id pour ne renvoyer que les matchs de la session active
         const query = `
             SELECT 
                 m.id, m.match_datetime, m.irg_index,
@@ -969,7 +1039,9 @@ app.post('/api/v1/admin/session-ticket', mutationLimiter, verifyAdminKey, upload
 });
 
 // ==========================================
-// 4. WEBHOOK PAIEMENT
+// 4. WEBHOOK PAIEMENT (V11.18.5)
+// Architecture conservée pour le futur paiement Wave / Orange Money.
+// Logique de récompense client-parrain supprimée.
 // ==========================================
 
 app.post('/api/v1/payments/webhook', async (req, res) => {
@@ -1018,12 +1090,14 @@ app.post('/api/v1/payments/webhook', async (req, res) => {
         const transactionId = data.id;
         const amount = data.amount;
 
+        // Idempotence
         const checkDuplicate = await client.query('SELECT id FROM payments WHERE transaction_id = $1', [transactionId]);
         if (checkDuplicate.rows.length > 0) {
             await client.query('ROLLBACK');
             return res.json({ success: true, message: 'Transaction déjà traitée (Idempotent).' });
         }
 
+        // 🔧 V11.18.5 : Activation du compte payant (mise à jour status et subscription_expiry)
         await client.query(`
             UPDATE users 
             SET status = 'ACTIVE',
@@ -1031,38 +1105,21 @@ app.post('/api/v1/payments/webhook', async (req, res) => {
             WHERE id = $1
         `, [userId]);
 
+        // Enregistrement du paiement
         await client.query(
             "INSERT INTO payments (user_id, transaction_id, amount, status, provider) VALUES ($1, $2, $3, 'SUCCESS', 'WAVE')",
             [userId, transactionId, amount]
         );
 
-        const checkReferrer = await client.query(
-            "SELECT referred_by_id FROM users WHERE id = $1", [userId]
-        );
-        const referrerId = checkReferrer.rows[0]?.referred_by_id;
-
-        if (referrerId) {
-            const countPayments = await pool.query(`
-                SELECT COUNT(DISTINCT user_id) FROM payments 
-                WHERE user_id IN (SELECT id FROM users WHERE referred_by_id = $1)
-                AND status = 'SUCCESS'
-                AND date_part('year', created_at) = date_part('year', CURRENT_DATE)
-            `, [referrerId]);
-
-            const totalDistinctPaidReferrals = parseInt(countPayments.rows[0].count, 10);
-
-            if (totalDistinctPaidReferrals > 0 && totalDistinctPaidReferrals % 3 === 0 && totalDistinctPaidReferrals <= 9) {
-                await client.query(`
-                    UPDATE users 
-                    SET status = 'ACTIVE',
-                        subscription_expiry = COALESCE(subscription_expiry, CURRENT_TIMESTAMP) + INTERVAL '30 days'
-                    WHERE id = $1
-                `, [referrerId]);
-            }
-        }
+        // 🔧 V11.18.5 : Suppression totale de la logique de récompense client-parrain (3/6/9)
+        // Le bloc suivant a été supprimé :
+        // - checkReferrer
+        // - countPayments (comptage des filleuls)
+        // - totalDistinctPaidReferrals
+        // - attribution de jours gratuits au parrain
 
         await client.query('COMMIT');
-        res.json({ success: true, message: 'Compte activé et parrainage vérifié.' });
+        res.json({ success: true, message: 'Compte activé.' });
     } catch (err) {
         if (client) await client.query('ROLLBACK').catch(() => {});
         console.error('❌ Erreur Webhook:', err.message);
@@ -1121,7 +1178,7 @@ app.use((err, req, res, next) => {
 // ==========================================
 
 const server = app.listen(PORT, () => {
-    console.log(`🟢 Serveur Mike Edge V11.18.4 connecté et démarré sur le port ${PORT}`);
+    console.log(`🟢 Serveur Mike Edge V11.18.6 connecté et démarré sur le port ${PORT}`);
 });
 
 const gracefulShutdown = async (signal) => {
