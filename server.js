@@ -216,7 +216,7 @@ app.post('/api/v1/auth/register', mutationLimiter, async (req, res) => {
             `INSERT INTO users (phone, password_hash, role, status, referral_code, referred_by_id, subscription_expiry)
              VALUES ($1, $2, $3, $4, $5, $6, $7)
              RETURNING id, phone, role, status, referral_code, subscription_expiry`,
-            [phone.trim(), hashedPassword, 'USER', 'ACTIVE', newReferralCode, referredById, new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)]
+            [phone.trim(), hashedPassword, 'SUBSCRIBER', 'ACTIVE', newReferralCode, referredById, new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)]
         );
 
         const newUser = insertResult.rows[0];
