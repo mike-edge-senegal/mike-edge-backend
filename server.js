@@ -229,6 +229,53 @@ app.post('/api/v1/auth/register', mutationLimiter, async (req, res) => {
     }
 });
 
+// --- VERIFY OTP (phase test — code 1234) ---
+app.post('/api/v1/auth/verify-otp', mutationLimiter, async (req, res) => {
+    const { phone, otp_code } = req.body;
+
+    if (!phone || !otp_code) {
+        return res.status(400).json({
+            success: false,
+            code: 'ERR_INVALID_INPUT',
+            message: 'Numéro et code requis.'
+        });
+    }
+
+    try {
+        if (otp_code !== '1234') {
+            return res.status(400).json({
+                success: false,
+                code: 'ERR_INVALID_OTP',
+                message: 'Code SMS incorrect.'
+            });
+        }
+
+        const result = await pool.query(
+            'SELECT id, phone, role, status, referral_code, subscription_expiry FROM users WHERE phone = $1',
+            [phone.trim()]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                code: 'ERR_USER_NOT_FOUND',
+                message: 'Utilisateur introuvable.'
+            });
+        }
+
+        res.json({
+            success: true,
+            user: result.rows[0]
+        });
+    } catch (err) {
+        console.error('❌ Erreur Verify OTP:', err.message);
+        res.status(500).json({
+            success: false,
+            code: 'ERR_DB_VERIFY_OTP'
+        });
+    }
+});
+
 app.post('/api/v1/auth/login', mutationLimiter, async (req, res) => {
     const { phone, password } = req.body;
 
