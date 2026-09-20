@@ -282,7 +282,7 @@ th{background-color:rgba(212,175,55,0.1);color:var(--gold)}
 <div class="card-title"><span>5. STATISTIQUES VRP</span></div>
 <button class="btn btn-gold" id="loadVrpBtn" onclick="loadVrpPerformance()">🔄 ACTUALISER LES STATS VRP</button>
 <div id="vrpTableContainer" style="display:none;margin-top:14px;overflow-x:auto;">
-<table id="vrpTable"><thead><tr><th>Code</th><th>Zone</th><th>Abonnés</th><th>Temps</th></tr></thead><tbody id="vrpTableBody"></tbody></table>
+<table id="vrpTable"><thead><tr><th>Code</th><th>Zone</th><th>Abonnés</th></tr></thead><tbody id="vrpTableBody"></tbody></table>
 </div>
 </div>
 
@@ -1012,9 +1012,32 @@ async function loadVrpPerformance(){
         var r=await fetch(API_BASE+'/vrp/stats',{method:'GET',headers:{'x-admin-key':adminKey}});var j=await r.json();
         if(!r.ok||!j.success)throw new Error(j.message||"Échec stats");
         var tb=document.getElementById('vrpTableBody');tb.innerHTML='';
-        if(!j.data||!j.data.length){var row=document.createElement('tr');var td=document.createElement('td');td.colSpan=4;td.style.textAlign='center';td.textContent='Aucun VRP.';row.appendChild(td);tb.appendChild(row)}
-        else{j.data.forEach(function(v){var row=document.createElement('tr');var c=document.createElement('td');c.style.color='var(--gold-bright)';c.textContent=v.vrp_code;var z=document.createElement('td');z.textContent=v.zone;var s=document.createElement('td');s.textContent=v.active_subscribers;var t=document.createElement('td');t.textContent='+'+v.earned_days+' jours';row.appendChild(c);row.appendChild(z);row.appendChild(s);row.appendChild(t);tb.appendChild(row)})}
-        document.getElementById('vrpTableContainer').style.display='block';showToast("Stats actualisées",'success');
+        if(!j.data||!j.data.length){
+            var row=document.createElement('tr');
+            var td=document.createElement('td');
+            td.colSpan=3;
+            td.style.textAlign='center';
+            td.textContent='Aucun VRP.';
+            row.appendChild(td);
+            tb.appendChild(row);
+        } else {
+            j.data.forEach(function(v){
+                var row=document.createElement('tr');
+                var c=document.createElement('td');
+                c.style.color='var(--gold-bright)';
+                c.textContent=v.vrp_code;
+                var z=document.createElement('td');
+                z.textContent=v.zone;
+                var s=document.createElement('td');
+                s.textContent=v.active_subscribers;
+                row.appendChild(c);
+                row.appendChild(z);
+                row.appendChild(s);
+                tb.appendChild(row);
+            });
+        }
+        document.getElementById('vrpTableContainer').style.display='block';
+        showToast("Stats actualisées",'success');
     }catch(e){showToast("Erreur: "+e.name+": "+e.message)}finally{setLoading(false)}
 }
 
@@ -1630,4 +1653,4 @@ async function publierFiche(){
 }
 </script>
 </body>
-  </html>
+</html>
