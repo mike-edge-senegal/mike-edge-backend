@@ -1,42 +1,14 @@
 /**
- * 🏆 PROJET MIKE EDGE - SERVER.JS (V11.18.6 GS FUNCTIONAL)
+ * 🏆 PROJET MIKE EDGE - SERVER.JS (V11.18.7 — F-4.2 OTP)
  * -------------------------------------------------------------------
- * FIX : category_override passé à savePublicationTransaction
- * FIX : Classement par IRG décroissant (ORDER BY m.irg_index DESC)
- * FIX : CAST match_id::integer pour corriger le JOIN vide
- * FIX : GET /api/v1/matches/:category renvoie désormais les infos de session active
- * FIX : La liste des matchs est filtrée par session_id (Claude audit)
- * FIX : Routes Kiosque Magazine HD (Gestion Admin)
- * SEC : Kiosque Magazine HD — toutes écritures (upload, insert, delete Storage)
- *       passent exclusivement par le serveur via SUPABASE_SERVICE_ROLE_KEY.
- *       Multer reçoit les fichiers en multipart. Le client n'écrit plus jamais
- *       directement dans Supabase pour le Kiosque.
- * FIX : Info Flash HD — toutes écritures passent par le serveur (service_role)
- *       Logique défensive : upload → UPDATE → suppression ancienne.
- *       Routes GET /admin/flash-info/status, POST /admin/flash-info,
- *       PUT /admin/flash-info/status.
- * FIX V11.18.3 : Suppression des références à updated_at dans les routes flash
- *                (colonne inexistante dans la table flash_infos).
- * FIX V11.18.3 : Aperçu visuel de la photo flash dans admin.html (côté client)
- *                La route POST renvoie image_url et is_active.
- * FIX V11.18.3 : Module Ticket de Session HD — routes GET et POST,
- *                nettoyage Storage, logique défensive.
- * FIX V11.18.3 : Ajout de mutationLimiter sur la route POST session-ticket.
- * FIX V11.18.4 : Inversion ordre des opérations Ticket (upload → DB → COMMIT → suppression)
- *                Évite la perte définitive de la photo si l'upload échoue.
- * FIX V11.18.4 : Retrait updated_at dans l'upsert session_ticket (cohérence Flash).
- * FIX V11.18.4 : Ajout is_active:true dans la réponse POST session-ticket.
- * FIX V11.18.5 : Suppression de la dépendance à la table payments dans la route login.
- *                Suppression de paid_referrals_count du résultat de login.
- *                Suppression de la logique 3/6/9 de récompense dans la route VRP.
- *                Suppression de la logique de récompense client-parrain dans le webhook.
- *                Conservation de referred_by_id pour le rattachement VRP uniquement.
- * FIX V11.18.6 : RESTAURATION de la route POST /api/v1/auth/register (absente dans V11.18.5).
- *                CORRECTION de /matches/:category pour gérer le cas sans session active.
- *                CONSERVATION de l'architecture webhook paiement (isolée de la phase test).
- *                CONFIRMATION : AUCUNE modification Supabase, AUCUNE création de table payments.
- * FIX V11.18.6 : Adaptation de register pour accepter vrp_code (au lieu de referral_code)
- *                en conservant referral_code comme alias pour compatibilité.
+ * (Historique V11.18.6 conservé — non reproduit intégralement)
+ *
+ * F-4.2 : Introduction du système OTP de production.
+ *   - AUTH_MODE=TEST : comportement 1234 conservé (aucun accès à otp_codes)
+ *   - AUTH_MODE=PRODUCTION : OTP 6 chiffres + bcrypt + 10 min + 5 tentatives
+ *   - Gestion explicite de ERR_OTP_ALREADY_USED, ERR_OTP_EXPIRED,
+ *     ERR_OTP_MAX_ATTEMPTS, ERR_INVALID_OTP
+ *   - Aucun autre changement fonctionnel
  * -------------------------------------------------------------------
  */
 
@@ -51,16 +23,23 @@ const path = require('path');
 const multer = require('multer');
 const { createClient } = require('@supabase/supabase-js');
 
-const { 
-    pool, 
-    parseTelegramText, 
+const {
+    pool,
+    parseTelegramText,
     validateParsedImport,
     savePublicationTransaction,
-    PARSER_VERSION 
+    PARSER_VERSION
 } = require('./src/index');
+
+// 🆕 F-4.2 : modules OTP
+const config = require('./src/config');
+const { StubSmsProvider } = require('./src/smsProvider');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// 🆕 F-4.2 : provider SMS (STUB uniquement en phase actuelle)
+const smsProvider = new StubSmsProvider();
 
 const ALLOWED_CATEGORIES = ['ELITE_MONDIALE', 'FRANCE', 'ESPAGNE', 'ANGLETERRE', 'EUROPE', 'MONDE', 'CHAMPIONNAT'];
 
@@ -78,7 +57,7 @@ app.use(helmet({
     },
 }));
 
-const allowedOrigins = process.env.ALLOWED_ORIGINS 
+const allowedOrigins = process.env.ALLOWED_ORIGINS
     ? process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim()).filter(Boolean)
     : [];
 
@@ -86,8 +65,8 @@ if (process.env.NODE_ENV === 'production' && allowedOrigins.length === 0) {
     console.warn('⚠️ WARNING: ALLOWED_ORIGINS non configuré. Mode API ouverte (non recommandé en prod).');
 }
 
-app.use(cors({ 
-    origin: allowedOrigins.length ? allowedOrigins : '*' 
+app.use(cors({
+    origin: allowedOrigins.length ? allowedOrigins : '*'
 }));
 
 app.use(express.json({ limit: '1mb' }));
@@ -166,10 +145,35 @@ function verifyAdminKey(req, res, next) {
 }
 
 // ==========================================
+// 🆕 F-4.2 — HELPERS OTP
+// ==========================================
+
+/**
+ * Génère un OTP numérique de longueur fixe, à zéro initial conservé.
+ * Utilise crypto.randomInt (source cryptographiquement sûre).
+ * Ex : generateOtp(6) peut retourner "007421".
+ */
+function generateOtp(length) {
+    const max = Math.pow(10, length);
+    const n = crypto.randomInt(0, max);
+    return String(n).padStart(length, '0');
+}
+
+/**
+ * Tronque un numéro de téléphone pour les logs.
+ * Ex : "771234567" → "77****567"
+ */
+function maskPhone(phone) {
+    const s = String(phone || '');
+    if (s.length < 5) return '****';
+    return `${s.slice(0, 2)}****${s.slice(-3)}`;
+}
+
+// ==========================================
 // 1. AUTHENTIFICATION
 // ==========================================
 
-// --- REGISTER (restauré V11.18.6) ---
+// --- REGISTER (F-4.2 : bifurcation TEST / PRODUCTION) ---
 app.post('/api/v1/auth/register', mutationLimiter, async (req, res) => {
     const { phone, password, vrp_code, referral_code } = req.body;
 
@@ -181,17 +185,19 @@ app.post('/api/v1/auth/register', mutationLimiter, async (req, res) => {
         return res.status(400).json({ success: false, code: 'ERR_PASSWORD_TOO_SHORT', message: 'Mot de passe trop court (minimum 6 caractères).' });
     }
 
+    const cleanPhone = phone.trim();
+
     try {
         // Vérifier si l'utilisateur existe déjà
-        const existingUser = await pool.query('SELECT id FROM users WHERE phone = $1', [phone.trim()]);
+        const existingUser = await pool.query('SELECT id FROM users WHERE phone = $1', [cleanPhone]);
         if (existingUser.rows.length > 0) {
             return res.status(409).json({ success: false, code: 'ERR_USER_EXISTS', message: 'Ce numéro est déjà enregistré.' });
         }
 
-        // 🔧 V11.18.6 : Accepter vrp_code (contrat APK) ou referral_code (compatibilité)
+        // Résolution du code VRP
         const codeToUse = vrp_code || referral_code || null;
         let referredById = null;
-        
+
         if (codeToUse) {
             const vrpResult = await pool.query(
                 'SELECT id FROM users WHERE referral_code = $1 AND role = $2',
@@ -201,78 +207,265 @@ app.post('/api/v1/auth/register', mutationLimiter, async (req, res) => {
                 referredById = vrpResult.rows[0].id;
                 console.log('[REGISTER] VRP rattaché avec le code:', codeToUse);
             } else {
-                // Code VRP invalide → on ignore (pas d'erreur bloquante pour la phase test)
                 console.warn('[REGISTER] Code VRP invalide:', codeToUse);
             }
         }
 
-        const saltRounds = 12;
-        const hashedPassword = await bcrypt.hash(password, saltRounds);
-
-        // Générer un referral_code unique pour le nouvel utilisateur
+        const hashedPassword = await bcrypt.hash(password, config.OTP_BCRYPT_ROUNDS);
         const newReferralCode = 'ME' + Date.now().toString(36).toUpperCase() + Math.random().toString(36).substring(2, 6).toUpperCase();
 
-        const insertResult = await pool.query(
-            `INSERT INTO users (phone, password_hash, role, status, referral_code, referred_by_id, subscription_expiry)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)
-             RETURNING id, phone, role, status, referral_code, subscription_expiry`,
-            [phone.trim(), hashedPassword, 'SUBSCRIBER', 'ACTIVE', newReferralCode, referredById, new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)]
-        );
+        // =====================================================
+        // MODE TEST : comportement historique conservé (1234)
+        // Aucun accès à otp_codes. Aucun envoi SMS.
+        // =====================================================
+        if (config.AUTH_MODE === 'TEST') {
+            const insertResult = await pool.query(
+                `INSERT INTO users (phone, password_hash, role, status, referral_code, referred_by_id, subscription_expiry)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7)
+                 RETURNING id, phone, role, status, referral_code, subscription_expiry`,
+                [cleanPhone, hashedPassword, 'SUBSCRIBER', 'ACTIVE', newReferralCode, referredById, new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)]
+            );
+            const newUser = insertResult.rows[0];
+            delete newUser.password_hash;
 
-        const newUser = insertResult.rows[0];
-        delete newUser.password_hash;
+            return res.status(201).json({
+                success: true,
+                user: newUser,
+                otp_length: config.OTP_TEST_LENGTH
+            });
+        }
 
-        res.status(201).json({ success: true, user: newUser });
+        // =====================================================
+        // MODE PRODUCTION : transaction utilisateur + OTP
+        // =====================================================
+        let otp = generateOtp(config.OTP_PRODUCTION_LENGTH);
+        const otpHash = await bcrypt.hash(otp, config.OTP_BCRYPT_ROUNDS);
+
+        const client = await pool.connect();
+        let newUser;
+
+        try {
+            await client.query('BEGIN');
+
+            // 1. Création de l'utilisateur
+            const insertResult = await client.query(
+                `INSERT INTO users (phone, password_hash, role, status, referral_code, referred_by_id, subscription_expiry)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7)
+                 RETURNING id, phone, role, status, referral_code, subscription_expiry`,
+                [cleanPhone, hashedPassword, 'SUBSCRIBER', 'ACTIVE', newReferralCode, referredById, new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)]
+            );
+            newUser = insertResult.rows[0];
+            delete newUser.password_hash;
+
+            // 2. Invalider les anciens OTP actifs de ce téléphone
+            await client.query(
+                `UPDATE otp_codes
+                 SET used = true, consumed_at = NOW()
+                 WHERE phone = $1
+                   AND used = false
+                   AND consumed_at IS NULL
+                   AND expires_at > NOW()`,
+                [cleanPhone]
+            );
+
+            // 3. Insérer le nouvel OTP
+            await client.query(
+                `INSERT INTO otp_codes (phone, code_hash, expires_at, used, created_at, attempts, consumed_at)
+                 VALUES ($1, $2, NOW() + INTERVAL '10 minutes', false, NOW(), 0, NULL)`,
+                [cleanPhone, otpHash]
+            );
+
+            await client.query('COMMIT');
+        } catch (txErr) {
+            await client.query('ROLLBACK').catch(() => {});
+
+            // Gestion collision unique sur phone (register concurrent)
+            if (txErr && txErr.code === '23505') {
+                return res.status(409).json({ success: false, code: 'ERR_USER_EXISTS', message: 'Ce numéro est déjà enregistré.' });
+            }
+
+            console.error('❌ Erreur Register (transaction PRODUCTION):', txErr.message);
+            return res.status(500).json({ success: false, code: 'ERR_DB_REGISTER' });
+        } finally {
+            client.release();
+        }
+
+        // 4. Envoi SMS (hors transaction, après COMMIT)
+        let sms_sent = false;
+        try {
+            const smsResult = await smsProvider.sendOtp(cleanPhone, otp);
+            sms_sent = Boolean(smsResult && smsResult.success);
+        } catch (smsErr) {
+            console.error('❌ Erreur envoi SMS:', smsErr.message);
+            sms_sent = false;
+        }
+
+        // 5. Effacer la référence en clair (best-effort)
+        otp = null;
+
+        return res.status(201).json({
+            success: true,
+            user: newUser,
+            otp_length: config.OTP_PRODUCTION_LENGTH,
+            sms_sent
+        });
+
     } catch (err) {
         console.error('❌ Erreur Register:', err.message);
         res.status(500).json({ success: false, code: 'ERR_DB_REGISTER' });
     }
 });
 
-// --- VERIFY OTP (phase test — code 1234) ---
+// --- VERIFY OTP (F-4.2 : bifurcation TEST / PRODUCTION) ---
 app.post('/api/v1/auth/verify-otp', mutationLimiter, async (req, res) => {
     const { phone, otp_code } = req.body;
 
     if (!phone || !otp_code) {
-        return res.status(400).json({
-            success: false,
-            code: 'ERR_INVALID_INPUT',
-            message: 'Numéro et code requis.'
-        });
+        return res.status(400).json({ success: false, code: 'ERR_INVALID_INPUT', message: 'Numéro et code requis.' });
     }
 
-    try {
-        if (otp_code !== '1234') {
-            return res.status(400).json({
-                success: false,
-                code: 'ERR_INVALID_OTP',
-                message: 'Code SMS incorrect.'
-            });
-        }
+    const cleanPhone = String(phone).trim();
 
-        const result = await pool.query(
-            'SELECT id, phone, role, status, referral_code, subscription_expiry FROM users WHERE phone = $1',
-            [phone.trim()]
+    // =====================================================
+    // MODE TEST : comportement historique conservé (1234)
+    // Aucun accès à otp_codes.
+    // =====================================================
+    if (config.AUTH_MODE === 'TEST') {
+        try {
+            if (otp_code !== '1234') {
+                return res.status(400).json({ success: false, code: 'ERR_INVALID_OTP', message: 'Code SMS incorrect.' });
+            }
+
+            const result = await pool.query(
+                'SELECT id, phone, role, status, referral_code, subscription_expiry FROM users WHERE phone = $1',
+                [cleanPhone]
+            );
+
+            if (result.rows.length === 0) {
+                return res.status(404).json({ success: false, code: 'ERR_USER_NOT_FOUND', message: 'Utilisateur introuvable.' });
+            }
+
+            return res.json({ success: true, user: result.rows[0] });
+        } catch (err) {
+            console.error('❌ Erreur Verify OTP (TEST):', err.message);
+            return res.status(500).json({ success: false, code: 'ERR_DB_VERIFY_OTP' });
+        }
+    }
+
+    // =====================================================
+    // MODE PRODUCTION
+    // =====================================================
+
+    // Validation préalable : exactement 6 chiffres
+    if (!/^\d{6}$/.test(String(otp_code))) {
+        return res.status(400).json({ success: false, code: 'ERR_INVALID_OTP', message: 'Code OTP invalide.' });
+    }
+
+    const client = await pool.connect();
+
+    try {
+        await client.query('BEGIN');
+
+        // Recherche du dernier OTP pour ce phone, SANS filtrer used/consumed_at.
+        // Le test d'état se fait APRÈS le SELECT pour permettre ERR_OTP_ALREADY_USED
+        // et ERR_OTP_EXPIRED même si la ligne a été partiellement modifiée.
+        const otpRes = await client.query(
+            `SELECT id, phone, code_hash, expires_at, used, attempts, consumed_at
+             FROM otp_codes
+             WHERE phone = $1
+             ORDER BY created_at DESC
+             LIMIT 1
+             FOR UPDATE`,
+            [cleanPhone]
         );
 
-        if (result.rows.length === 0) {
-            return res.status(404).json({
-                success: false,
-                code: 'ERR_USER_NOT_FOUND',
-                message: 'Utilisateur introuvable.'
-            });
+        if (otpRes.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ success: false, code: 'ERR_INVALID_OTP', message: 'Code OTP invalide.' });
         }
 
-        res.json({
-            success: true,
-            user: result.rows[0]
-        });
+        const otpRow = otpRes.rows[0];
+
+        // OTP déjà consommé (used OU consumed_at défini) → erreur dédiée
+        if (otpRow.used === true || otpRow.consumed_at !== null) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ success: false, code: 'ERR_OTP_ALREADY_USED', message: 'Ce code a déjà été utilisé.' });
+        }
+
+        // Vérification expiration
+        if (new Date(otpRow.expires_at) <= new Date()) {
+            await client.query(
+                `UPDATE otp_codes SET used = true, consumed_at = NOW() WHERE id = $1`,
+                [otpRow.id]
+            );
+            await client.query('COMMIT');
+            return res.status(400).json({ success: false, code: 'ERR_OTP_EXPIRED', message: 'Code OTP expiré.' });
+        }
+
+        // Vérification limite tentatives (déjà atteinte)
+        if (otpRow.attempts >= config.OTP_MAX_ATTEMPTS) {
+            await client.query(
+                `UPDATE otp_codes SET used = true, consumed_at = NOW() WHERE id = $1`,
+                [otpRow.id]
+            );
+            await client.query('COMMIT');
+            return res.status(429).json({ success: false, code: 'ERR_OTP_MAX_ATTEMPTS', message: 'Trop de tentatives.' });
+        }
+
+        // code_hash absent → aucun fallback en clair
+        if (!otpRow.code_hash) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ success: false, code: 'ERR_INVALID_OTP', message: 'Code OTP invalide.' });
+        }
+
+        // Comparaison bcrypt
+        const valid = await bcrypt.compare(String(otp_code), otpRow.code_hash);
+
+        if (!valid) {
+            const newAttempts = otpRow.attempts + 1;
+
+            if (newAttempts >= config.OTP_MAX_ATTEMPTS) {
+                await client.query(
+                    `UPDATE otp_codes SET attempts = $1, used = true, consumed_at = NOW() WHERE id = $2`,
+                    [newAttempts, otpRow.id]
+                );
+                await client.query('COMMIT');
+                return res.status(429).json({ success: false, code: 'ERR_OTP_MAX_ATTEMPTS', message: 'Trop de tentatives.' });
+            }
+
+            await client.query(
+                `UPDATE otp_codes SET attempts = $1 WHERE id = $2`,
+                [newAttempts, otpRow.id]
+            );
+            await client.query('COMMIT');
+            return res.status(400).json({ success: false, code: 'ERR_INVALID_OTP', message: 'Code OTP invalide.' });
+        }
+
+        // OTP correct : marquer consommé
+        await client.query(
+            `UPDATE otp_codes SET used = true, consumed_at = NOW() WHERE id = $1`,
+            [otpRow.id]
+        );
+        await client.query('COMMIT');
+
+        // Recherche de l'utilisateur
+        const userRes = await pool.query(
+            'SELECT id, phone, role, status, referral_code, subscription_expiry FROM users WHERE phone = $1',
+            [cleanPhone]
+        );
+
+        if (userRes.rows.length === 0) {
+            return res.status(404).json({ success: false, code: 'ERR_USER_NOT_FOUND', message: 'Utilisateur introuvable.' });
+        }
+
+        return res.json({ success: true, user: userRes.rows[0] });
+
     } catch (err) {
-        console.error('❌ Erreur Verify OTP:', err.message);
-        res.status(500).json({
-            success: false,
-            code: 'ERR_DB_VERIFY_OTP'
-        });
+        await client.query('ROLLBACK').catch(() => {});
+        console.error('❌ Erreur Verify OTP (PRODUCTION):', err.message);
+        return res.status(500).json({ success: false, code: 'ERR_OTP_INTERNAL' });
+    } finally {
+        client.release();
     }
 });
 
@@ -284,7 +477,6 @@ app.post('/api/v1/auth/login', mutationLimiter, async (req, res) => {
     }
 
     try {
-        // 🔧 V11.18.5 : Suppression de la sous-requête payments et du champ paid_referrals_count
         const query = `
             SELECT 
                 u.id, u.role, u.status, u.phone, u.password_hash, u.subscription_expiry, u.referral_code
@@ -336,8 +528,7 @@ app.post('/api/v1/auth/reset-password', mutationLimiter, async (req, res) => {
         if (!isDevBypass && otp !== '1234') {
             return res.status(400).json({ success: false, code: 'ERR_INVALID_OTP', message: 'Code SMS incorrect.' });
         }
-        const saltRounds = 12;
-        const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
+        const hashedPassword = await bcrypt.hash(newPassword, 12);
         const updateResult = await pool.query('UPDATE users SET password_hash = $1 WHERE phone = $2 RETURNING id', [hashedPassword, phone.trim()]);
         if (updateResult.rows.length === 0) {
             return res.status(404).json({ success: false, code: 'ERR_USER_NOT_FOUND', message: 'Utilisateur introuvable.' });
@@ -418,7 +609,7 @@ app.get('/health', (req, res) => {
         success: true,
         status: 'UP',
         service: 'mike-edge-backend',
-        version: '11.18.6',
+        version: '11.18.7',
         timestamp: new Date().toISOString(),
         environment: process.env.NODE_ENV || 'development'
     });
@@ -462,7 +653,6 @@ app.get('/api/v1/vrp/stats', readLimiter, verifyAdminKey, async (req, res) => {
             const countRes = await pool.query(countQuery, [vrp.user_id]);
             const total = parseInt(countRes.rows[0].total, 10);
 
-            // 🔧 V11.18.5 : Suppression de la logique 3/6/9 (earned_days)
             results.push({
                 vrp_code: vrp.vrp_code,
                 zone: vrp.zone || 'N/A',
@@ -477,27 +667,20 @@ app.get('/api/v1/vrp/stats', readLimiter, verifyAdminKey, async (req, res) => {
     }
 });
 
-// ==========================================
-// 🔧 V11.17.5 FIX : CAST match_id::integer + SESSION ACTIVE + FILTRE SESSION_ID
-// 🔧 V11.18.6 : CORRECTION du cas sans session active
-// ==========================================
 app.get('/api/v1/matches/:category', async (req, res) => {
     const category = req.params.category.toUpperCase();
     console.log('[API] GET /matches/' + category);
-    
+
     if (!ALLOWED_CATEGORIES.includes(category)) {
         console.log('[API] Catégorie invalide:', category);
-        return res.status(400).json({ 
-            success: false, 
-            code: 'ERR_INVALID_CATEGORY', 
-            message: `Catégorie invalide. Choix autorisés : ${ALLOWED_CATEGORIES.join(', ')}` 
+        return res.status(400).json({
+            success: false,
+            code: 'ERR_INVALID_CATEGORY',
+            message: `Catégorie invalide. Choix autorisés : ${ALLOWED_CATEGORIES.join(', ')}`
         });
     }
-    
+
     try {
-        // =============================================
-        // 1. RÉCUPÉRER LA SESSION ACTIVE
-        // =============================================
         const sessionQuery = `
             SELECT 
                 id, 
@@ -510,15 +693,14 @@ app.get('/api/v1/matches/:category', async (req, res) => {
             LIMIT 1
         `;
         const sessionResult = await pool.query(sessionQuery, [category]);
-        
+
         let session = null;
         let activeCount = 0;
         const maxQuota = category === 'ELITE_MONDIALE' ? 10 : 5;
-        
+
         if (sessionResult.rows.length > 0) {
             const sessionRow = sessionResult.rows[0];
-            
-            // Compter les matchs dans cette session
+
             const countQuery = `
                 SELECT COUNT(*) as cnt
                 FROM match_category_rankings
@@ -526,7 +708,7 @@ app.get('/api/v1/matches/:category', async (req, res) => {
             `;
             const countResult = await pool.query(countQuery, [sessionRow.id]);
             activeCount = parseInt(countResult.rows[0].cnt, 10);
-            
+
             session = {
                 id: sessionRow.id,
                 number: sessionRow.session_number,
@@ -537,7 +719,6 @@ app.get('/api/v1/matches/:category', async (req, res) => {
                 can_import: activeCount < maxQuota
             };
         } else {
-            // Aucune session active → retourner une liste vide + session NONE
             console.log('[API] Aucune session active pour', category);
             return res.json({
                 success: true,
@@ -553,12 +734,9 @@ app.get('/api/v1/matches/:category', async (req, res) => {
                 }
             });
         }
-        
+
         console.log('[API] Session active pour', category, ':', session);
-        
-        // =============================================
-        // 2. RÉCUPÉRER LES MATCHS DE LA SESSION ACTIVE UNIQUEMENT
-        // =============================================
+
         const query = `
             SELECT 
                 m.id, m.match_datetime, m.irg_index,
@@ -578,25 +756,22 @@ app.get('/api/v1/matches/:category', async (req, res) => {
             LIMIT 50;
         `;
         const result = await pool.query(query, [category, session.id]);
-        
+
         console.log('[API] Résultats pour', category, ':', result.rows.length, 'matchs (session active uniquement)');
-        
-        // =============================================
-        // 3. RÉPONSE AVEC SESSION
-        // =============================================
+
         res.json({
             success: true,
             data: result.rows,
             session: session
         });
-        
+
     } catch (err) {
         console.error('[API] 🔴 ERREUR /matches/' + category + ':', err.message);
         console.error('[API] Code SQL:', err.code, '| Detail:', err.detail);
-        res.status(500).json({ 
-            success: false, 
+        res.status(500).json({
+            success: false,
             code: 'ERR_FETCH_MATCHES',
-            message: err.message 
+            message: err.message
         });
     }
 });
@@ -661,7 +836,6 @@ app.get('/api/v1/magazines/:id/pages', async (req, res) => {
 // Toutes écritures passent par le serveur (service_role)
 // ==========================================
 
-// --- LISTE ADMIN (existante, inchangée) ---
 app.get('/api/v1/admin/magazines', readLimiter, verifyAdminKey, async (req, res) => {
     try {
         const query = `
@@ -681,7 +855,6 @@ app.get('/api/v1/admin/magazines', readLimiter, verifyAdminKey, async (req, res)
     }
 });
 
-// --- CRÉATION ALBUM + UPLOAD COUVERTURE ---
 app.post('/api/v1/admin/magazines', mutationLimiter, verifyAdminKey, upload.single('cover'), async (req, res) => {
     try {
         const { title, edition_date } = req.body;
@@ -720,7 +893,6 @@ app.post('/api/v1/admin/magazines', mutationLimiter, verifyAdminKey, upload.sing
     }
 });
 
-// --- AJOUT DE PAGES ---
 app.post('/api/v1/admin/magazines/:id/pages', mutationLimiter, verifyAdminKey, upload.array('pages', 10), async (req, res) => {
     try {
         const magazineId = parseInt(req.params.id, 10);
@@ -781,7 +953,6 @@ app.post('/api/v1/admin/magazines/:id/pages', mutationLimiter, verifyAdminKey, u
     }
 });
 
-// --- MODIFICATION INFOS ALBUM (existante, inchangée) ---
 app.put('/api/v1/magazines/:id', mutationLimiter, verifyAdminKey, async (req, res) => {
     const magazineId = parseInt(req.params.id, 10);
     const { title, edition_date } = req.body;
@@ -806,7 +977,6 @@ app.put('/api/v1/magazines/:id', mutationLimiter, verifyAdminKey, async (req, re
     }
 });
 
-// --- SUPPRESSION ALBUM ENTIER + NETTOYAGE STORAGE ---
 app.delete('/api/v1/magazines/:id', mutationLimiter, verifyAdminKey, async (req, res) => {
     const magazineId = parseInt(req.params.id, 10);
     if (isNaN(magazineId) || magazineId <= 0) {
@@ -827,7 +997,6 @@ app.delete('/api/v1/magazines/:id', mutationLimiter, verifyAdminKey, async (req,
         await client.query('DELETE FROM magazines WHERE id = $1', [magazineId]);
         await client.query('COMMIT');
 
-        // Nettoyage Storage côté serveur
         const pathsToRemove = urlsToClean.map(url => {
             const m = url.match(/\/magazines\/(.+)$/);
             return m ? m[1] : null;
@@ -847,7 +1016,6 @@ app.delete('/api/v1/magazines/:id', mutationLimiter, verifyAdminKey, async (req,
     }
 });
 
-// --- SUPPRESSION PAGE + RENUMÉROTATION + NETTOYAGE STORAGE ---
 app.delete('/api/v1/magazines/pages/:pageId', mutationLimiter, verifyAdminKey, async (req, res) => {
     const pageId = parseInt(req.params.pageId, 10);
     if (isNaN(pageId) || pageId <= 0) {
@@ -873,7 +1041,6 @@ app.delete('/api/v1/magazines/pages/:pageId', mutationLimiter, verifyAdminKey, a
         );
         await client.query('COMMIT');
 
-        // Nettoyage Storage côté serveur
         const pathMatch = image_url.match(/\/magazines\/(.+)$/);
         if (pathMatch) {
             const { error: delError } = await supabaseAdmin.storage.from('magazines').remove([pathMatch[1]]);
@@ -892,11 +1059,8 @@ app.delete('/api/v1/magazines/pages/:pageId', mutationLimiter, verifyAdminKey, a
 
 // ==========================================
 // INFO FLASH HD — GESTION ADMIN (V11.18.2)
-// Toutes écritures passent par le serveur (service_role)
-// Logique défensive : upload → UPDATE → suppression ancienne
 // ==========================================
 
-// --- LECTURE STATUT (public, pour initialisation client) ---
 app.get('/api/v1/admin/flash-info/status', async (req, res) => {
     try {
         const result = await pool.query('SELECT is_active, image_url FROM flash_infos LIMIT 1');
@@ -910,7 +1074,6 @@ app.get('/api/v1/admin/flash-info/status', async (req, res) => {
     }
 });
 
-// --- PUBLICATION / MISE À JOUR FLASH (upload photo + UPDATE unique) ---
 app.post('/api/v1/admin/flash-info', mutationLimiter, verifyAdminKey, upload.single('photo'), async (req, res) => {
     try {
         if (!req.file) {
@@ -920,11 +1083,9 @@ app.post('/api/v1/admin/flash-info', mutationLimiter, verifyAdminKey, upload.sin
         const file = req.file;
         const storagePath = `flash/${Date.now()}_${file.originalname}`;
 
-        // 1. Récupérer l'ancienne ligne (pour nettoyage post-UPDATE)
         const oldRes = await pool.query('SELECT image_url FROM flash_infos LIMIT 1');
         const oldImageUrl = oldRes.rows.length > 0 ? oldRes.rows[0].image_url : null;
 
-        // 2. Upload nouvelle photo
         const { error: upError } = await supabaseAdmin.storage.from('magazines').upload(storagePath, file.buffer, {
             contentType: file.mimetype,
             upsert: false
@@ -937,7 +1098,6 @@ app.post('/api/v1/admin/flash-info', mutationLimiter, verifyAdminKey, upload.sin
         const { data: urlData } = supabaseAdmin.storage.from('magazines').getPublicUrl(storagePath);
         const imageUrl = urlData.publicUrl;
 
-        // 3. UPDATE ou INSERT (une seule ligne toujours) — sans updated_at
         if (oldRes.rows.length > 0) {
             await pool.query(
                 'UPDATE flash_infos SET title = $1, message = $2, image_url = $3, is_active = $4',
@@ -950,7 +1110,6 @@ app.post('/api/v1/admin/flash-info', mutationLimiter, verifyAdminKey, upload.sin
             );
         }
 
-        // 4. Nettoyage best-effort de l'ancienne photo (après succès DB)
         if (oldImageUrl) {
             const pathMatch = oldImageUrl.match(/\/magazines\/(.+)$/);
             if (pathMatch) {
@@ -966,7 +1125,6 @@ app.post('/api/v1/admin/flash-info', mutationLimiter, verifyAdminKey, upload.sin
     }
 });
 
-// --- ACTIVATION / DÉSACTIVATION FLASH (sans updated_at) ---
 app.put('/api/v1/admin/flash-info/status', mutationLimiter, verifyAdminKey, async (req, res) => {
     try {
         const { is_active } = req.body;
@@ -992,7 +1150,6 @@ app.put('/api/v1/admin/flash-info/status', mutationLimiter, verifyAdminKey, asyn
 // MODULE 4 — TICKET DE SESSION HD (V11.18.4)
 // ============================================
 
-// GET — Récupérer le ticket actuel (pour la preview admin)
 app.get('/api/v1/admin/session-ticket', async (req, res) => {
     try {
         const result = await pool.query(
@@ -1008,9 +1165,6 @@ app.get('/api/v1/admin/session-ticket', async (req, res) => {
     }
 });
 
-// POST — Publier / remplacer le ticket (avec mutationLimiter)
-// 🔧 FIX V11.18.4 : Ordre corrigé — upload nouveau → upsert DB → COMMIT → suppression ancienne (hors transaction)
-//                   + Retrait de updated_at (cohérence Flash)
 app.post('/api/v1/admin/session-ticket', mutationLimiter, verifyAdminKey, upload.single('photo'), async (req, res) => {
     try {
         if (!req.file) {
@@ -1024,13 +1178,11 @@ app.post('/api/v1/admin/session-ticket', mutationLimiter, verifyAdminKey, upload
         try {
             await client.query('BEGIN');
 
-            // 1. Récupérer l'ancien ticket (pour nettoyage post-succès)
             const oldResult = await client.query(
                 "SELECT value FROM system_configs WHERE key = 'session_ticket_url'"
             );
             oldUrl = oldResult.rows[0]?.value || null;
 
-            // 2. Upload nouvelle photo D'ABORD
             const fileExt = req.file.originalname.split('.').pop() || 'jpg';
             const fileName = `session_tickets/${Date.now()}_${Math.random().toString(36).substring(2, 10)}.${fileExt}`;
 
@@ -1043,13 +1195,11 @@ app.post('/api/v1/admin/session-ticket', mutationLimiter, verifyAdminKey, upload
 
             if (uploadError) throw new Error('Upload échoué: ' + uploadError.message);
 
-            // 3. Récupérer l'URL publique
             const { data: publicUrlData } = supabaseAdmin.storage
                 .from('tickets')
                 .getPublicUrl(fileName);
             newPublicUrl = publicUrlData.publicUrl;
 
-            // 4. Upsert en base (une seule ligne, clé unique) — sans updated_at (cohérence Flash)
             await client.query(
                 `INSERT INTO system_configs (key, value) VALUES ('session_ticket_url', $1)
                  ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
@@ -1064,7 +1214,6 @@ app.post('/api/v1/admin/session-ticket', mutationLimiter, verifyAdminKey, upload
             client.release();
         }
 
-        // 5. Nettoyage best-effort de l'ancienne photo (APRÈS succès DB, hors transaction)
         if (oldUrl) {
             try {
                 const pathMatch = oldUrl.split('/tickets/');
@@ -1087,8 +1236,6 @@ app.post('/api/v1/admin/session-ticket', mutationLimiter, verifyAdminKey, upload
 
 // ==========================================
 // 4. WEBHOOK PAIEMENT (V11.18.5)
-// Architecture conservée pour le futur paiement Wave / Orange Money.
-// Logique de récompense client-parrain supprimée.
 // ==========================================
 
 app.post('/api/v1/payments/webhook', async (req, res) => {
@@ -1119,11 +1266,11 @@ app.post('/api/v1/payments/webhook', async (req, res) => {
     const userId = data?.metadata?.user_id ? Number(data.metadata.user_id) : null;
 
     if (
-        !data?.id || 
-        !userId || 
-        !Number.isInteger(userId) || 
-        userId <= 0 || 
-        typeof data.amount !== 'number' || 
+        !data?.id ||
+        !userId ||
+        !Number.isInteger(userId) ||
+        userId <= 0 ||
+        typeof data.amount !== 'number' ||
         data.amount <= 0
     ) {
         return res.status(400).json({ success: false, code: 'ERR_INVALID_WEBHOOK_DATA' });
@@ -1137,14 +1284,12 @@ app.post('/api/v1/payments/webhook', async (req, res) => {
         const transactionId = data.id;
         const amount = data.amount;
 
-        // Idempotence
         const checkDuplicate = await client.query('SELECT id FROM payments WHERE transaction_id = $1', [transactionId]);
         if (checkDuplicate.rows.length > 0) {
             await client.query('ROLLBACK');
             return res.json({ success: true, message: 'Transaction déjà traitée (Idempotent).' });
         }
 
-        // 🔧 V11.18.5 : Activation du compte payant (mise à jour status et subscription_expiry)
         await client.query(`
             UPDATE users 
             SET status = 'ACTIVE',
@@ -1152,18 +1297,10 @@ app.post('/api/v1/payments/webhook', async (req, res) => {
             WHERE id = $1
         `, [userId]);
 
-        // Enregistrement du paiement
         await client.query(
             "INSERT INTO payments (user_id, transaction_id, amount, status, provider) VALUES ($1, $2, $3, 'SUCCESS', 'WAVE')",
             [userId, transactionId, amount]
         );
-
-        // 🔧 V11.18.5 : Suppression totale de la logique de récompense client-parrain (3/6/9)
-        // Le bloc suivant a été supprimé :
-        // - checkReferrer
-        // - countPayments (comptage des filleuls)
-        // - totalDistinctPaidReferrals
-        // - attribution de jours gratuits au parrain
 
         await client.query('COMMIT');
         res.json({ success: true, message: 'Compte activé.' });
@@ -1197,7 +1334,6 @@ app.post('/api/v1/notifications/push', mutationLimiter, verifyAdminKey, async (r
 // 6. HANDLERS D'ERREUR GLOBALES
 // ==========================================
 
-// Multer errors (doit précéder le 404)
 app.use((err, req, res, next) => {
     if (err instanceof multer.MulterError) {
         if (err.code === 'LIMIT_FILE_SIZE') {
@@ -1225,7 +1361,7 @@ app.use((err, req, res, next) => {
 // ==========================================
 
 const server = app.listen(PORT, () => {
-    console.log(`🟢 Serveur Mike Edge V11.18.6 connecté et démarré sur le port ${PORT}`);
+    console.log(`🟢 Serveur Mike Edge V11.18.7 connecté et démarré sur le port ${PORT}`);
 });
 
 const gracefulShutdown = async (signal) => {
