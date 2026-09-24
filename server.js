@@ -1,14 +1,17 @@
 /**
- * 🏆 PROJET MIKE EDGE - SERVER.JS (V11.18.7 — F-4.2 OTP)
+ * 🏆 PROJET MIKE EDGE - SERVER.JS (V11.18.8 — F-4.3 RESEND OTP)
  * -------------------------------------------------------------------
- * (Historique V11.18.6 conservé — non reproduit intégralement)
+ * (Historique V11.18.7 conservé — non reproduit intégralement)
  *
  * F-4.2 : Introduction du système OTP de production.
  *   - AUTH_MODE=TEST : comportement 1234 conservé (aucun accès à otp_codes)
  *   - AUTH_MODE=PRODUCTION : OTP 6 chiffres + bcrypt + 10 min + 5 tentatives
- *   - Gestion explicite de ERR_OTP_ALREADY_USED, ERR_OTP_EXPIRED,
- *     ERR_OTP_MAX_ATTEMPTS, ERR_INVALID_OTP
- *   - Aucun autre changement fonctionnel
+ *
+ * F-4.3 : Ajout de la route POST /auth/resend-otp
+ *   - Permet à un utilisateur existant de redemander un code OTP
+ *   - Aucun impact sur /register, /verify-otp, /login, /forgot-password, /reset-password
+ *   - Mode TEST : vérifie l'utilisateur, ne touche pas otp_codes
+ *   - Mode PRODUCTION : advisory lock + invalidation ancien OTP + nouveau OTP + SMS
  * -------------------------------------------------------------------
  */
 
@@ -216,7 +219,6 @@ app.post('/api/v1/auth/register', mutationLimiter, async (req, res) => {
 
         // =====================================================
         // MODE TEST : comportement historique conservé (1234)
-        // Aucun accès à otp_codes. Aucun envoi SMS.
         // =====================================================
         if (config.AUTH_MODE === 'TEST') {
             const insertResult = await pool.query(
@@ -236,7 +238,7 @@ app.post('/api/v1/auth/register', mutationLimiter, async (req, res) => {
         }
 
         // =====================================================
-        // MODE PRODUCTION : transaction utilisateur + OTP
+        // MODE PRODUCTION
         // =====================================================
         let otp = generateOtp(config.OTP_PRODUCTION_LENGTH);
         const otpHash = await bcrypt.hash(otp, config.OTP_BCRYPT_ROUNDS);
@@ -247,7 +249,6 @@ app.post('/api/v1/auth/register', mutationLimiter, async (req, res) => {
         try {
             await client.query('BEGIN');
 
-            // 1. Création de l'utilisateur
             const insertResult = await client.query(
                 `INSERT INTO users (phone, password_hash, role, status, referral_code, referred_by_id, subscription_expiry)
                  VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -257,7 +258,6 @@ app.post('/api/v1/auth/register', mutationLimiter, async (req, res) => {
             newUser = insertResult.rows[0];
             delete newUser.password_hash;
 
-            // 2. Invalider les anciens OTP actifs de ce téléphone
             await client.query(
                 `UPDATE otp_codes
                  SET used = true, consumed_at = NOW()
@@ -268,18 +268,16 @@ app.post('/api/v1/auth/register', mutationLimiter, async (req, res) => {
                 [cleanPhone]
             );
 
-            // 3. Insérer le nouvel OTP
             await client.query(
                 `INSERT INTO otp_codes (phone, code_hash, expires_at, used, created_at, attempts, consumed_at)
-                 VALUES ($1, $2, NOW() + INTERVAL '10 minutes', false, NOW(), 0, NULL)`,
-                [cleanPhone, otpHash]
+                 VALUES ($1, $2, NOW() + ($3 * INTERVAL '1 minute'), false, NOW(), 0, NULL)`,
+                [cleanPhone, otpHash, config.OTP_EXPIRATION_MINUTES]
             );
 
             await client.query('COMMIT');
         } catch (txErr) {
             await client.query('ROLLBACK').catch(() => {});
 
-            // Gestion collision unique sur phone (register concurrent)
             if (txErr && txErr.code === '23505') {
                 return res.status(409).json({ success: false, code: 'ERR_USER_EXISTS', message: 'Ce numéro est déjà enregistré.' });
             }
@@ -290,7 +288,6 @@ app.post('/api/v1/auth/register', mutationLimiter, async (req, res) => {
             client.release();
         }
 
-        // 4. Envoi SMS (hors transaction, après COMMIT)
         let sms_sent = false;
         try {
             const smsResult = await smsProvider.sendOtp(cleanPhone, otp);
@@ -300,7 +297,6 @@ app.post('/api/v1/auth/register', mutationLimiter, async (req, res) => {
             sms_sent = false;
         }
 
-        // 5. Effacer la référence en clair (best-effort)
         otp = null;
 
         return res.status(201).json({
@@ -328,7 +324,6 @@ app.post('/api/v1/auth/verify-otp', mutationLimiter, async (req, res) => {
 
     // =====================================================
     // MODE TEST : comportement historique conservé (1234)
-    // Aucun accès à otp_codes.
     // =====================================================
     if (config.AUTH_MODE === 'TEST') {
         try {
@@ -356,7 +351,6 @@ app.post('/api/v1/auth/verify-otp', mutationLimiter, async (req, res) => {
     // MODE PRODUCTION
     // =====================================================
 
-    // Validation préalable : exactement 6 chiffres
     if (!/^\d{6}$/.test(String(otp_code))) {
         return res.status(400).json({ success: false, code: 'ERR_INVALID_OTP', message: 'Code OTP invalide.' });
     }
@@ -366,9 +360,6 @@ app.post('/api/v1/auth/verify-otp', mutationLimiter, async (req, res) => {
     try {
         await client.query('BEGIN');
 
-        // Recherche du dernier OTP pour ce phone, SANS filtrer used/consumed_at.
-        // Le test d'état se fait APRÈS le SELECT pour permettre ERR_OTP_ALREADY_USED
-        // et ERR_OTP_EXPIRED même si la ligne a été partiellement modifiée.
         const otpRes = await client.query(
             `SELECT id, phone, code_hash, expires_at, used, attempts, consumed_at
              FROM otp_codes
@@ -386,13 +377,11 @@ app.post('/api/v1/auth/verify-otp', mutationLimiter, async (req, res) => {
 
         const otpRow = otpRes.rows[0];
 
-        // OTP déjà consommé (used OU consumed_at défini) → erreur dédiée
         if (otpRow.used === true || otpRow.consumed_at !== null) {
             await client.query('ROLLBACK');
             return res.status(400).json({ success: false, code: 'ERR_OTP_ALREADY_USED', message: 'Ce code a déjà été utilisé.' });
         }
 
-        // Vérification expiration
         if (new Date(otpRow.expires_at) <= new Date()) {
             await client.query(
                 `UPDATE otp_codes SET used = true, consumed_at = NOW() WHERE id = $1`,
@@ -402,7 +391,6 @@ app.post('/api/v1/auth/verify-otp', mutationLimiter, async (req, res) => {
             return res.status(400).json({ success: false, code: 'ERR_OTP_EXPIRED', message: 'Code OTP expiré.' });
         }
 
-        // Vérification limite tentatives (déjà atteinte)
         if (otpRow.attempts >= config.OTP_MAX_ATTEMPTS) {
             await client.query(
                 `UPDATE otp_codes SET used = true, consumed_at = NOW() WHERE id = $1`,
@@ -412,13 +400,11 @@ app.post('/api/v1/auth/verify-otp', mutationLimiter, async (req, res) => {
             return res.status(429).json({ success: false, code: 'ERR_OTP_MAX_ATTEMPTS', message: 'Trop de tentatives.' });
         }
 
-        // code_hash absent → aucun fallback en clair
         if (!otpRow.code_hash) {
             await client.query('ROLLBACK');
             return res.status(400).json({ success: false, code: 'ERR_INVALID_OTP', message: 'Code OTP invalide.' });
         }
 
-        // Comparaison bcrypt
         const valid = await bcrypt.compare(String(otp_code), otpRow.code_hash);
 
         if (!valid) {
@@ -441,14 +427,12 @@ app.post('/api/v1/auth/verify-otp', mutationLimiter, async (req, res) => {
             return res.status(400).json({ success: false, code: 'ERR_INVALID_OTP', message: 'Code OTP invalide.' });
         }
 
-        // OTP correct : marquer consommé
         await client.query(
             `UPDATE otp_codes SET used = true, consumed_at = NOW() WHERE id = $1`,
             [otpRow.id]
         );
         await client.query('COMMIT');
 
-        // Recherche de l'utilisateur
         const userRes = await pool.query(
             'SELECT id, phone, role, status, referral_code, subscription_expiry FROM users WHERE phone = $1',
             [cleanPhone]
@@ -540,6 +524,106 @@ app.post('/api/v1/auth/reset-password', mutationLimiter, async (req, res) => {
     }
 });
 
+// --- RESEND OTP (F-4.3) ---
+app.post('/api/v1/auth/resend-otp', mutationLimiter, async (req, res) => {
+    const { phone } = req.body;
+
+    if (!phone || typeof phone !== 'string' || phone.trim().length < 8) {
+        return res.status(400).json({ success: false, code: 'ERR_INVALID_PHONE', message: 'Numéro invalide.' });
+    }
+
+    const cleanPhone = phone.trim();
+
+    // =====================================================
+    // MODE TEST : vérifier l'utilisateur, ne pas toucher otp_codes
+    // =====================================================
+    if (config.AUTH_MODE === 'TEST') {
+        try {
+            const userCheck = await pool.query('SELECT id FROM users WHERE phone = $1', [cleanPhone]);
+            if (userCheck.rows.length === 0) {
+                return res.status(404).json({ success: false, code: 'ERR_USER_NOT_FOUND', message: 'Utilisateur introuvable.' });
+            }
+
+            return res.json({
+                success: true,
+                message: 'En mode TEST, utilisez le code 1234.',
+                otp_length: config.OTP_TEST_LENGTH,
+                sms_sent: false
+            });
+        } catch (err) {
+            console.error('❌ Erreur Resend OTP (TEST):', err.message);
+            return res.status(500).json({ success: false, code: 'ERR_DB_RESEND_OTP' });
+        }
+    }
+
+    // =====================================================
+    // MODE PRODUCTION
+    // =====================================================
+    const client = await pool.connect();
+
+    try {
+        await client.query('BEGIN');
+
+        const userRes = await client.query('SELECT id FROM users WHERE phone = $1', [cleanPhone]);
+        if (userRes.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ success: false, code: 'ERR_USER_NOT_FOUND', message: 'Utilisateur introuvable.' });
+        }
+
+        // Verrou advisory pour empêcher les resends concurrents
+        await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`otp:${cleanPhone}`]);
+
+        // Invalider les anciens OTP actifs
+        await client.query(
+            `UPDATE otp_codes
+             SET used = true, consumed_at = NOW()
+             WHERE phone = $1
+               AND used = false
+               AND consumed_at IS NULL
+               AND expires_at > NOW()`,
+            [cleanPhone]
+        );
+
+        // Générer un nouveau code
+        let otp = generateOtp(config.OTP_PRODUCTION_LENGTH);
+        const otpHash = await bcrypt.hash(otp, config.OTP_BCRYPT_ROUNDS);
+
+        // Insérer le nouvel OTP
+        await client.query(
+            `INSERT INTO otp_codes (phone, code_hash, expires_at, used, created_at, attempts, consumed_at)
+             VALUES ($1, $2, NOW() + ($3 * INTERVAL '1 minute'), false, NOW(), 0, NULL)`,
+            [cleanPhone, otpHash, config.OTP_EXPIRATION_MINUTES]
+        );
+
+        await client.query('COMMIT');
+
+        // Envoi SMS hors transaction
+        let sms_sent = false;
+        try {
+            const smsResult = await smsProvider.sendOtp(cleanPhone, otp);
+            sms_sent = Boolean(smsResult && smsResult.success);
+        } catch (smsErr) {
+            console.error('❌ Erreur envoi SMS (resend-otp):', smsErr.message);
+            sms_sent = false;
+        }
+
+        otp = null;
+
+        return res.json({
+            success: true,
+            otp_length: config.OTP_PRODUCTION_LENGTH,
+            sms_sent
+        });
+
+    } catch (err) {
+        await client.query('ROLLBACK').catch(() => {});
+        console.error('❌ Erreur Resend OTP (PRODUCTION):', err.message);
+        return res.status(500).json({ success: false, code: 'ERR_OTP_INTERNAL' });
+    } finally {
+        client.release();
+    }
+});
+
 // ==========================================
 // 2. PIPELINE D'IMPORTATION (ADMIN)
 // ==========================================
@@ -609,7 +693,7 @@ app.get('/health', (req, res) => {
         success: true,
         status: 'UP',
         service: 'mike-edge-backend',
-        version: '11.18.7',
+        version: '11.18.8',
         timestamp: new Date().toISOString(),
         environment: process.env.NODE_ENV || 'development'
     });
@@ -833,7 +917,6 @@ app.get('/api/v1/magazines/:id/pages', async (req, res) => {
 
 // ==========================================
 // KIOSQUE MAGAZINE HD — GESTION ADMIN (V11.18)
-// Toutes écritures passent par le serveur (service_role)
 // ==========================================
 
 app.get('/api/v1/admin/magazines', readLimiter, verifyAdminKey, async (req, res) => {
@@ -1361,7 +1444,7 @@ app.use((err, req, res, next) => {
 // ==========================================
 
 const server = app.listen(PORT, () => {
-    console.log(`🟢 Serveur Mike Edge V11.18.7 connecté et démarré sur le port ${PORT}`);
+    console.log(`🟢 Serveur Mike Edge V11.18.8 connecté et démarré sur le port ${PORT}`);
 });
 
 const gracefulShutdown = async (signal) => {
