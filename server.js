@@ -1,17 +1,18 @@
 /**
- * 🏆 PROJET MIKE EDGE - SERVER.JS (V11.18.8 — F-4.3 RESEND OTP)
+ * 🏆 PROJET MIKE EDGE - SERVER.JS (V11.18.9 — F-4.4 RESET PASSWORD OTP)
  * -------------------------------------------------------------------
- * (Historique V11.18.7 conservé — non reproduit intégralement)
+ * (Historique V11.18.8 conservé — non reproduit intégralement)
  *
- * F-4.2 : Introduction du système OTP de production.
- *   - AUTH_MODE=TEST : comportement 1234 conservé (aucun accès à otp_codes)
- *   - AUTH_MODE=PRODUCTION : OTP 6 chiffres + bcrypt + 10 min + 5 tentatives
+ * F-4.2 : Système OTP de production pour inscription.
+ * F-4.3 : Route /auth/resend-otp.
  *
- * F-4.3 : Ajout de la route POST /auth/resend-otp
- *   - Permet à un utilisateur existant de redemander un code OTP
- *   - Aucun impact sur /register, /verify-otp, /login, /forgot-password, /reset-password
- *   - Mode TEST : vérifie l'utilisateur, ne touche pas otp_codes
- *   - Mode PRODUCTION : advisory lock + invalidation ancien OTP + nouveau OTP + SMS
+ * F-4.4 : Réinitialisation mot de passe par OTP dédié.
+ *   - Table dédiée : public.password_reset_otps
+ *   - /forgot-password : génère un OTP 6 chiffres + bcrypt + SMS (PRODUCTION)
+ *   - /reset-password : valide l'OTP + change le mot de passe (transaction atomique)
+ *   - Mode TEST : vérifie user, accepte 1234, ne touche pas password_reset_otps
+ *   - Mode PRODUCTION : anti-énumération sur numéro inexistant, OTP sécurisé
+ *   - Aucun impact sur otp_codes (F-4.2 / F-4.3)
  * -------------------------------------------------------------------
  */
 
@@ -191,13 +192,11 @@ app.post('/api/v1/auth/register', mutationLimiter, async (req, res) => {
     const cleanPhone = phone.trim();
 
     try {
-        // Vérifier si l'utilisateur existe déjà
         const existingUser = await pool.query('SELECT id FROM users WHERE phone = $1', [cleanPhone]);
         if (existingUser.rows.length > 0) {
             return res.status(409).json({ success: false, code: 'ERR_USER_EXISTS', message: 'Ce numéro est déjà enregistré.' });
         }
 
-        // Résolution du code VRP
         const codeToUse = vrp_code || referral_code || null;
         let referredById = null;
 
@@ -217,9 +216,6 @@ app.post('/api/v1/auth/register', mutationLimiter, async (req, res) => {
         const hashedPassword = await bcrypt.hash(password, config.OTP_BCRYPT_ROUNDS);
         const newReferralCode = 'ME' + Date.now().toString(36).toUpperCase() + Math.random().toString(36).substring(2, 6).toUpperCase();
 
-        // =====================================================
-        // MODE TEST : comportement historique conservé (1234)
-        // =====================================================
         if (config.AUTH_MODE === 'TEST') {
             const insertResult = await pool.query(
                 `INSERT INTO users (phone, password_hash, role, status, referral_code, referred_by_id, subscription_expiry)
@@ -237,9 +233,6 @@ app.post('/api/v1/auth/register', mutationLimiter, async (req, res) => {
             });
         }
 
-        // =====================================================
-        // MODE PRODUCTION
-        // =====================================================
         let otp = generateOtp(config.OTP_PRODUCTION_LENGTH);
         const otpHash = await bcrypt.hash(otp, config.OTP_BCRYPT_ROUNDS);
 
@@ -322,9 +315,6 @@ app.post('/api/v1/auth/verify-otp', mutationLimiter, async (req, res) => {
 
     const cleanPhone = String(phone).trim();
 
-    // =====================================================
-    // MODE TEST : comportement historique conservé (1234)
-    // =====================================================
     if (config.AUTH_MODE === 'TEST') {
         try {
             if (otp_code !== '1234') {
@@ -346,10 +336,6 @@ app.post('/api/v1/auth/verify-otp', mutationLimiter, async (req, res) => {
             return res.status(500).json({ success: false, code: 'ERR_DB_VERIFY_OTP' });
         }
     }
-
-    // =====================================================
-    // MODE PRODUCTION
-    // =====================================================
 
     if (!/^\d{6}$/.test(String(otp_code))) {
         return res.status(400).json({ success: false, code: 'ERR_INVALID_OTP', message: 'Code OTP invalide.' });
@@ -488,39 +474,260 @@ app.post('/api/v1/auth/login', mutationLimiter, async (req, res) => {
     }
 });
 
+// --- FORGOT PASSWORD OTP (F-4.4) ---
 app.post('/api/v1/auth/forgot-password', mutationLimiter, async (req, res) => {
     const { phone } = req.body;
+
     if (!phone || typeof phone !== 'string' || phone.trim().length < 8) {
         return res.status(400).json({ success: false, code: 'ERR_INVALID_PHONE', message: 'Numéro de téléphone invalide.' });
     }
+
+    const cleanPhone = phone.trim();
+
+    // =====================================================
+    // MODE TEST : vérifier l'utilisateur, ne pas toucher password_reset_otps
+    // =====================================================
+    if (config.AUTH_MODE === 'TEST') {
+        try {
+            const userCheck = await pool.query('SELECT id FROM users WHERE phone = $1', [cleanPhone]);
+            if (userCheck.rows.length === 0) {
+                return res.status(404).json({ success: false, code: 'ERR_USER_NOT_FOUND', message: 'Utilisateur introuvable.' });
+            }
+
+            return res.json({
+                success: true,
+                message: 'Si ce numéro existe, un code de réinitialisation a été envoyé.',
+                otp_length: config.OTP_TEST_LENGTH,
+                sms_sent: false
+            });
+        } catch (err) {
+            console.error('❌ Erreur Forgot Password (TEST):', err.message);
+            return res.status(500).json({ success: false, code: 'ERR_DB_FORGOT' });
+        }
+    }
+
+    // =====================================================
+    // MODE PRODUCTION
+    // =====================================================
+    const client = await pool.connect();
+    let otp = null;
+
     try {
-        await pool.query('SELECT id FROM users WHERE phone = $1', [phone.trim()]);
-        res.json({ success: true, message: 'Si ce numéro existe, un code de réinitialisation a été envoyé.' });
+        await client.query('BEGIN');
+
+        const userRes = await client.query('SELECT id FROM users WHERE phone = $1', [cleanPhone]);
+
+        // Anti-énumération : si le numéro n'existe pas, on répond succès générique
+        if (userRes.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.json({
+                success: true,
+                message: 'Si ce numéro existe, un code de réinitialisation a été envoyé.'
+            });
+        }
+
+        // Verrou advisory par téléphone pour éviter deux OTP actifs concurrents
+        await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`reset_otp:${cleanPhone}`]);
+
+        // Invalider les anciens OTP non consommés (même expirés, pour respecter l'index unique actif)
+        await client.query(
+            `UPDATE password_reset_otps
+             SET used = true, consumed_at = NOW()
+             WHERE phone = $1
+               AND used = false
+               AND consumed_at IS NULL`,
+            [cleanPhone]
+        );
+
+        // Générer et hasher le nouveau code
+        otp = generateOtp(config.OTP_PRODUCTION_LENGTH);
+        const otpHash = await bcrypt.hash(otp, config.OTP_BCRYPT_ROUNDS);
+
+        // Insérer le nouvel OTP
+        await client.query(
+            `INSERT INTO password_reset_otps (phone, code_hash, expires_at, used, attempts, consumed_at, created_at)
+             VALUES ($1, $2, NOW() + ($3 * INTERVAL '1 minute'), false, 0, NULL, NOW())`,
+            [cleanPhone, otpHash, config.OTP_EXPIRATION_MINUTES]
+        );
+
+        await client.query('COMMIT');
+
+        // Envoi SMS hors transaction, après COMMIT
+        let sms_sent = false;
+        try {
+            const smsResult = await smsProvider.sendOtp(cleanPhone, otp);
+            sms_sent = Boolean(smsResult && smsResult.success);
+        } catch (smsErr) {
+            console.error('❌ Erreur envoi SMS (forgot-password):', smsErr.message);
+            sms_sent = false;
+        }
+
+        otp = null;
+
+        return res.json({
+            success: true,
+            otp_length: config.OTP_PRODUCTION_LENGTH,
+            sms_sent
+        });
+
     } catch (err) {
-        console.error('❌ Erreur Forgot Password:', err.message);
-        res.status(500).json({ success: false, code: 'ERR_DB_FORGOT' });
+        await client.query('ROLLBACK').catch(() => {});
+        console.error('❌ Erreur Forgot Password (PRODUCTION):', err.message);
+        return res.status(500).json({ success: false, code: 'ERR_DB_FORGOT' });
+    } finally {
+        client.release();
     }
 });
 
+// --- RESET PASSWORD OTP (F-4.4) ---
 app.post('/api/v1/auth/reset-password', mutationLimiter, async (req, res) => {
     const { phone, otp, newPassword } = req.body;
-    if (!phone || !otp || !newPassword || newPassword.length < 6) {
-        return res.status(400).json({ success: false, code: 'ERR_INVALID_INPUT', message: 'Données incomplètes ou mot de passe trop court.' });
+
+    if (!phone || typeof phone !== 'string' || phone.trim().length < 8) {
+        return res.status(400).json({ success: false, code: 'ERR_INVALID_INPUT', message: 'Numéro de téléphone invalide.' });
     }
-    try {
-        const isDevBypass = process.env.NODE_ENV === 'development' && otp === '1234';
-        if (!isDevBypass && otp !== '1234') {
-            return res.status(400).json({ success: false, code: 'ERR_INVALID_OTP', message: 'Code SMS incorrect.' });
+    if (!otp) {
+        return res.status(400).json({ success: false, code: 'ERR_INVALID_INPUT', message: 'Code OTP requis.' });
+    }
+    if (!newPassword || newPassword.length < 6) {
+        return res.status(400).json({ success: false, code: 'ERR_INVALID_INPUT', message: 'Mot de passe trop court (minimum 6 caractères).' });
+    }
+
+    const cleanPhone = phone.trim();
+
+    // =====================================================
+    // MODE TEST : bypass 1234 (cohérence avec le reste de l'app)
+    // =====================================================
+    if (config.AUTH_MODE === 'TEST') {
+        try {
+            if (String(otp) !== '1234') {
+                return res.status(400).json({ success: false, code: 'ERR_INVALID_OTP', message: 'Code SMS incorrect.' });
+            }
+
+            const hashedPassword = await bcrypt.hash(newPassword, config.OTP_BCRYPT_ROUNDS);
+            const updateResult = await pool.query(
+                'UPDATE users SET password_hash = $1 WHERE phone = $2 RETURNING id',
+                [hashedPassword, cleanPhone]
+            );
+
+            if (updateResult.rows.length === 0) {
+                return res.status(404).json({ success: false, code: 'ERR_USER_NOT_FOUND', message: 'Utilisateur introuvable.' });
+            }
+
+            return res.json({ success: true, message: 'Mot de passe réinitialisé avec succès.' });
+        } catch (err) {
+            console.error('❌ Erreur Reset Password (TEST):', err.message);
+            return res.status(500).json({ success: false, code: 'ERR_DB_RESET' });
         }
-        const hashedPassword = await bcrypt.hash(newPassword, 12);
-        const updateResult = await pool.query('UPDATE users SET password_hash = $1 WHERE phone = $2 RETURNING id', [hashedPassword, phone.trim()]);
+    }
+
+    // =====================================================
+    // MODE PRODUCTION : OTP configurable via config.OTP_PRODUCTION_LENGTH
+    // =====================================================
+    const otpPattern = new RegExp(`^\\d{${config.OTP_PRODUCTION_LENGTH}}$`);
+    if (!otpPattern.test(String(otp))) {
+        return res.status(400).json({ success: false, code: 'ERR_INVALID_OTP', message: 'Code OTP invalide.' });
+    }
+
+    const client = await pool.connect();
+
+    try {
+        await client.query('BEGIN');
+
+        const otpRes = await client.query(
+            `SELECT id, phone, code_hash, expires_at, used, attempts, consumed_at
+             FROM password_reset_otps
+             WHERE phone = $1
+             ORDER BY created_at DESC
+             LIMIT 1
+             FOR UPDATE`,
+            [cleanPhone]
+        );
+
+        if (otpRes.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ success: false, code: 'ERR_INVALID_OTP', message: 'Code OTP invalide.' });
+        }
+
+        const otpRow = otpRes.rows[0];
+
+        if (otpRow.used === true || otpRow.consumed_at !== null) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ success: false, code: 'ERR_OTP_ALREADY_USED', message: 'Ce code a déjà été utilisé.' });
+        }
+
+        if (new Date(otpRow.expires_at) <= new Date()) {
+            await client.query(
+                `UPDATE password_reset_otps SET used = true, consumed_at = NOW() WHERE id = $1`,
+                [otpRow.id]
+            );
+            await client.query('COMMIT');
+            return res.status(400).json({ success: false, code: 'ERR_OTP_EXPIRED', message: 'Code OTP expiré.' });
+        }
+
+        if (otpRow.attempts >= config.OTP_MAX_ATTEMPTS) {
+            await client.query(
+                `UPDATE password_reset_otps SET used = true, consumed_at = NOW() WHERE id = $1`,
+                [otpRow.id]
+            );
+            await client.query('COMMIT');
+            return res.status(429).json({ success: false, code: 'ERR_OTP_MAX_ATTEMPTS', message: 'Trop de tentatives.' });
+        }
+
+        if (!otpRow.code_hash) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ success: false, code: 'ERR_INVALID_OTP', message: 'Code OTP invalide.' });
+        }
+
+        const valid = await bcrypt.compare(String(otp), otpRow.code_hash);
+
+        if (!valid) {
+            const newAttempts = otpRow.attempts + 1;
+
+            if (newAttempts >= config.OTP_MAX_ATTEMPTS) {
+                await client.query(
+                    `UPDATE password_reset_otps SET attempts = $1, used = true, consumed_at = NOW() WHERE id = $2`,
+                    [newAttempts, otpRow.id]
+                );
+                await client.query('COMMIT');
+                return res.status(429).json({ success: false, code: 'ERR_OTP_MAX_ATTEMPTS', message: 'Trop de tentatives.' });
+            }
+
+            await client.query(
+                `UPDATE password_reset_otps SET attempts = $1 WHERE id = $2`,
+                [newAttempts, otpRow.id]
+            );
+            await client.query('COMMIT');
+            return res.status(400).json({ success: false, code: 'ERR_INVALID_OTP', message: 'Code OTP invalide.' });
+        }
+
+        // OTP valide : changer le mot de passe + consommer l'OTP dans la même transaction
+        const hashedPassword = await bcrypt.hash(newPassword, config.OTP_BCRYPT_ROUNDS);
+        const updateResult = await client.query(
+            'UPDATE users SET password_hash = $1 WHERE phone = $2 RETURNING id',
+            [hashedPassword, cleanPhone]
+        );
+
         if (updateResult.rows.length === 0) {
+            await client.query('ROLLBACK');
             return res.status(404).json({ success: false, code: 'ERR_USER_NOT_FOUND', message: 'Utilisateur introuvable.' });
         }
-        res.json({ success: true, message: 'Mot de passe réinitialisé avec succès.' });
+
+        await client.query(
+            `UPDATE password_reset_otps SET used = true, consumed_at = NOW() WHERE id = $1`,
+            [otpRow.id]
+        );
+
+        await client.query('COMMIT');
+
+        return res.json({ success: true, message: 'Mot de passe réinitialisé avec succès.' });
+
     } catch (err) {
-        console.error('❌ Erreur Reset Password:', err.message);
-        res.status(500).json({ success: false, code: 'ERR_DB_RESET' });
+        await client.query('ROLLBACK').catch(() => {});
+        console.error('❌ Erreur Reset Password (PRODUCTION):', err.message);
+        return res.status(500).json({ success: false, code: 'ERR_DB_RESET' });
+    } finally {
+        client.release();
     }
 });
 
@@ -534,9 +741,6 @@ app.post('/api/v1/auth/resend-otp', mutationLimiter, async (req, res) => {
 
     const cleanPhone = phone.trim();
 
-    // =====================================================
-    // MODE TEST : vérifier l'utilisateur, ne pas toucher otp_codes
-    // =====================================================
     if (config.AUTH_MODE === 'TEST') {
         try {
             const userCheck = await pool.query('SELECT id FROM users WHERE phone = $1', [cleanPhone]);
@@ -556,9 +760,6 @@ app.post('/api/v1/auth/resend-otp', mutationLimiter, async (req, res) => {
         }
     }
 
-    // =====================================================
-    // MODE PRODUCTION
-    // =====================================================
     const client = await pool.connect();
 
     try {
@@ -570,10 +771,8 @@ app.post('/api/v1/auth/resend-otp', mutationLimiter, async (req, res) => {
             return res.status(404).json({ success: false, code: 'ERR_USER_NOT_FOUND', message: 'Utilisateur introuvable.' });
         }
 
-        // Verrou advisory pour empêcher les resends concurrents
         await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`otp:${cleanPhone}`]);
 
-        // Invalider les anciens OTP actifs
         await client.query(
             `UPDATE otp_codes
              SET used = true, consumed_at = NOW()
@@ -584,11 +783,9 @@ app.post('/api/v1/auth/resend-otp', mutationLimiter, async (req, res) => {
             [cleanPhone]
         );
 
-        // Générer un nouveau code
         let otp = generateOtp(config.OTP_PRODUCTION_LENGTH);
         const otpHash = await bcrypt.hash(otp, config.OTP_BCRYPT_ROUNDS);
 
-        // Insérer le nouvel OTP
         await client.query(
             `INSERT INTO otp_codes (phone, code_hash, expires_at, used, created_at, attempts, consumed_at)
              VALUES ($1, $2, NOW() + ($3 * INTERVAL '1 minute'), false, NOW(), 0, NULL)`,
@@ -597,7 +794,6 @@ app.post('/api/v1/auth/resend-otp', mutationLimiter, async (req, res) => {
 
         await client.query('COMMIT');
 
-        // Envoi SMS hors transaction
         let sms_sent = false;
         try {
             const smsResult = await smsProvider.sendOtp(cleanPhone, otp);
@@ -693,7 +889,7 @@ app.get('/health', (req, res) => {
         success: true,
         status: 'UP',
         service: 'mike-edge-backend',
-        version: '11.18.8',
+        version: '11.18.9',
         timestamp: new Date().toISOString(),
         environment: process.env.NODE_ENV || 'development'
     });
@@ -1444,7 +1640,7 @@ app.use((err, req, res, next) => {
 // ==========================================
 
 const server = app.listen(PORT, () => {
-    console.log(`🟢 Serveur Mike Edge V11.18.8 connecté et démarré sur le port ${PORT}`);
+    console.log(`🟢 Serveur Mike Edge V11.18.9 connecté et démarré sur le port ${PORT}`);
 });
 
 const gracefulShutdown = async (signal) => {
