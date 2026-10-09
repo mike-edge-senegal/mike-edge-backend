@@ -3,7 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>🎛️ COCKPIT ADMIN — MIKE EDGE V11.18.4</title>
+<title>🎛️ COCKPIT ADMIN — MIKE EDGE V11.18.5</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/dark.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/fr.js"></script>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <style>
@@ -115,7 +119,7 @@ th{background-color:rgba(212,175,55,0.1);color:var(--gold)}
 .pronos-alert.err{ background:rgba(224,17,95,0.15); color:var(--alert-red); border:1px solid var(--alert-red) }
 .pronos-alert.info{ background:rgba(80,200,120,0.1); color:var(--emerald-success); border:1px solid var(--emerald-success) }
 
-/* ---------- KIOSQUE MAGAZINE HD (Claude) ---------- */
+/* ---------- KIOSQUE MAGAZINE HD ---------- */
 .kiosk-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
 .kiosk-card{background:var(--bg-card);border:1px solid var(--border-gold);border-radius:14px;overflow:hidden;cursor:pointer}
 .kiosk-cover{width:100%;aspect-ratio:9/16;object-fit:cover;background:var(--bg-elevated)}
@@ -139,7 +143,7 @@ th{background-color:rgba(212,175,55,0.1);color:var(--gold)}
 
 <div style="text-align:center;margin-bottom:16px;padding-top:10px;">
 <h1 style="font-size:20px;color:var(--gold);letter-spacing:1px;">🎛️ COCKPIT ADMIN MIKE EDGE</h1>
-<p style="font-size:11px;color:var(--text-muted);margin-top:2px;">V11.18.4</p>
+<p style="font-size:11px;color:var(--text-muted);margin-top:2px;">V11.18.5</p>
 <p id="apiUrlDisplay" style="font-size:10px;color:#666;margin-top:4px;"></p>
 </div>
 
@@ -176,7 +180,7 @@ th{background-color:rgba(212,175,55,0.1);color:var(--gold)}
 
 
 <!-- ========================================================== -->
-<!-- KIOSQUE MAGAZINE HD — CORRIGÉ (tactile fiable)             -->
+<!-- KIOSQUE MAGAZINE HD                                        -->
 <!-- ========================================================== -->
 <div class="card" id="kioskCard">
 <div class="card-title"><span>2. KIOSQUE MAGAZINE HD</span></div>
@@ -193,7 +197,8 @@ th{background-color:rgba(212,175,55,0.1);color:var(--gold)}
     <span></span>
   </div>
   <label class="label">Titre :</label><input type="text" id="kioskNewTitle" placeholder="Ex: Édition Spéciale">
-  <label class="label">Date :</label><input type="date" id="kioskNewDate">
+  <label class="label">Date (JJ/MM/AAAA) :</label>
+  <input type="text" id="kioskNewDate" placeholder="Ex: 09/10/2026" inputmode="numeric" maxlength="10" autocomplete="off">
   <label class="label">Couverture :</label><input type="file" id="kioskNewCover" accept="image/*" style="padding:8px;color:var(--text-muted);">
   <button class="btn btn-gold" data-action="create-album">✅ CRÉER L'ALBUM</button>
 </div>
@@ -214,7 +219,8 @@ th{background-color:rgba(212,175,55,0.1);color:var(--gold)}
 
   <div id="kioskEditForm" style="display:none;margin-bottom:14px">
     <label class="label">Titre :</label><input type="text" id="kioskEditTitle">
-    <label class="label">Date :</label><input type="date" id="kioskEditDate">
+    <label class="label">Date (JJ/MM/AAAA) :</label>
+    <input type="text" id="kioskEditDate" placeholder="Ex: 09/10/2026" inputmode="numeric" maxlength="10" autocomplete="off">
     <button class="btn btn-gold" data-action="save-edit">💾 Enregistrer</button>
   </div>
 
@@ -236,7 +242,7 @@ th{background-color:rgba(212,175,55,0.1);color:var(--gold)}
 
 
 <!-- ========================================================== -->
-<!-- INFO FLASH HD — CORRIGÉ (tactile fiable + serveur)         -->
+<!-- INFO FLASH HD                                              -->
 <!-- ========================================================== -->
 <div class="card" id="flashCard">
 <div class="card-title"><span>3. INFO FLASH HD</span></div>
@@ -256,7 +262,7 @@ th{background-color:rgba(212,175,55,0.1);color:var(--gold)}
 
 
 <!-- ========================================================== -->
-<!-- 4. TICKET DE SESSION HD — CORRIGÉ (tactile fiable + serveur) -->
+<!-- 4. TICKET DE SESSION HD                                    -->
 <!-- ========================================================== -->
 <div class="card" id="ticketCard">
   <div class="card-title"><span>4. TICKET DE SESSION HD</span></div>
@@ -303,8 +309,35 @@ function showToast(msg, type){var t=document.getElementById('toast');t.textConte
 function validateImageFile(f){if(!f)return"Aucun fichier.";if(!f.type.startsWith('image/'))return"Ce n'est pas une image.";if(f.size>MAX_FILE_SIZE)return"Fichier trop lourd (max 10Mo).";return null}
 
 // ============================================
-// 🗜️ COMPRESSION AUTO HD (V11.16+)
-// Redimensionne à max 1080px de large, qualité JPEG 80%
+// 📅 HELPERS DATE (inspirés de Kimi IA)
+// ============================================
+// Convertit "JJ/MM/AAAA" ou "AAAA-MM-JJ" → "AAAA-MM-JJ" (format API Supabase)
+function toISODate(str){
+    if(!str) return null;
+    str = String(str).trim();
+    // Format JJ/MM/AAAA ou JJ-MM-AAAA ou JJ.MM.AAAA
+    var m = str.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);
+    if(m){
+        var d = m[1].padStart(2,'0'), mo = m[2].padStart(2,'0');
+        // Validation basique
+        var day = parseInt(d,10), month = parseInt(mo,10);
+        if(day<1 || day>31 || month<1 || month>12) return null;
+        return m[3] + '-' + mo + '-' + d;
+    }
+    // Déjà au format ISO
+    if(/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+    return null;
+}
+
+// Convertit "AAAA-MM-JJ" → "JJ/MM/AAAA" pour l'affichage
+function toFrDate(iso){
+    if(!iso) return '';
+    var m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    return m ? m[3]+'/'+m[2]+'/'+m[1] : iso;
+}
+
+// ============================================
+// 🗜️ COMPRESSION AUTO HD
 // ============================================
 async function compressImage(file, options) {
     options = options || {};
@@ -320,7 +353,6 @@ async function compressImage(file, options) {
             var w = img.width;
             var h = img.height;
             
-            // Redimensionnement proportionnel
             if (w > maxWidth) {
                 h = Math.round(h * maxWidth / w);
                 w = maxWidth;
@@ -339,7 +371,7 @@ async function compressImage(file, options) {
                     type: 'image/jpeg',
                     lastModified: Date.now()
                 });
-                console.log('[COMPRESS] ' + file.name + ': ' + (file.size/1024).toFixed(0) + 'Ko → ' + (compressed.size/1024).toFixed(0) + 'Ko (' + Math.round(100*compressed.size/file.size) + '%)');
+                console.log('[COMPRESS] ' + file.name + ': ' + (file.size/1024).toFixed(0) + 'Ko → ' + (compressed.size/1024).toFixed(0) + 'Ko');
                 resolve(compressed);
             }, 'image/jpeg', quality);
         };
@@ -354,7 +386,7 @@ async function compressImage(file, options) {
 }
 
 // ============================================
-// 🔬 DIAGNOSTIC 3 ÉTAPES (V11.16)
+// 🔬 DIAGNOSTIC 3 ÉTAPES
 // ============================================
 window.addEventListener('DOMContentLoaded', async function(){
     var banner = document.getElementById('connectionBanner');
@@ -407,14 +439,37 @@ function setLoading(on,text){
 
 function getAdminKey(){return document.getElementById('adminKeyInput').value.trim()}
 
-// 🔧 V11.17.5 : Persistance clé admin + fiche en cours
 window.addEventListener('DOMContentLoaded', function(){
     var savedKey = localStorage.getItem('mike_admin_key');
     if(savedKey){ document.getElementById('adminKeyInput').value = savedKey; }
     var savedFiche = localStorage.getItem('mike_fiche_draft');
     if(savedFiche){ document.getElementById('ficheInput').value = savedFiche; }
     
-    // 🔧 AJOUT : Charger la liste des magazines au démarrage
+    // 🗓️ FIX V11.18.5 : Flatpickr hybride
+    // - Si flatpickr est chargé → calendrier visuel s'ouvre au clic
+    // - Si flatpickr ne charge pas → saisie manuelle JJ/MM/AAAA fonctionne (fallback)
+    if (typeof flatpickr !== 'undefined') {
+        try {
+            flatpickr('#kioskNewDate', {
+                dateFormat: 'd/m/Y',
+                allowInput: true,
+                locale: 'fr',
+                disableMobile: true,
+            });
+            flatpickr('#kioskEditDate', {
+                dateFormat: 'd/m/Y',
+                allowInput: true,
+                locale: 'fr',
+                disableMobile: true,
+            });
+            console.log('[FLATPICKR] Calendriers initialisés (mode hybride)');
+        } catch(fpErr) {
+            console.warn('[FLATPICKR] Échec init, saisie manuelle reste active:', fpErr.message);
+        }
+    } else {
+        console.warn('[FLATPICKR] Lib non chargée — saisie manuelle active');
+    }
+    
     loadKioskList();
 });
 function saveAdminKeyLocal(){ var k = document.getElementById('adminKeyInput').value.trim(); if(k) localStorage.setItem('mike_admin_key', k); }
@@ -436,30 +491,8 @@ async function testAdminKey(){
     }catch(e){b.disabled=false;s.textContent='❌ Réseau indisponible';s.style.color='#E0115F';b.style.background='#E0115F';}
 }
 
-function verifySheet(){
-    var text=document.getElementById('rawTextInput').value.trim();
-    var box=document.getElementById('previewBox'),det=document.getElementById('previewDetails'),btn=document.getElementById('publishSheetBtn');
-    if(!text){showToast("Collez une fiche.");return}
-    box.style.display='block';det.innerHTML='';
-    if(/vs|contre|match/i.test(text)){
-        var p=document.createElement('p');p.innerHTML='✅ Structure : <span class="status-ok">VALIDE</span>';det.appendChild(p);btn.style.display='block';
-    }else{var p=document.createElement('p');p.className='status-err';p.textContent='❌ Format non reconnu.';det.appendChild(p);btn.style.display='none';}
-}
-
-async function publishSector(){
-    var text=document.getElementById('rawTextInput').value.trim(),adminKey;
-    try{adminKey=getAdminKey()}catch(e){showToast(e.message);return}
-    setLoading(true,'PUBLICATION...');
-    try{
-        var r=await fetch(API_BASE+'/import',{method:'POST',headers:{'Content-Type':'application/json','x-admin-key':adminKey},body:JSON.stringify({raw_text:text,user_id:1,category_override:document.getElementById('categorySelect').value})});
-        var j=await r.json();
-        if(r.ok&&j.success){showToast("🚀 Publié ! ID: "+j.data.publication_id,'success');document.getElementById('rawTextInput').value='';document.getElementById('previewBox').style.display='none'}
-        else{showToast("Erreur: "+(j.message||JSON.stringify(j.errors)))}
-    }catch(e){showToast("Réseau: "+e.name+": "+e.message)}finally{setLoading(false)}
-}
-
 // ============================================
-// KIOSQUE MAGAZINE HD — CORRIGÉ (tactile fiable)
+// KIOSQUE MAGAZINE HD
 // ============================================
 var kioskAlbums=[];
 var kioskCurrentId=null;
@@ -490,7 +523,7 @@ function renderKioskGrid(){
             '<img class="kiosk-cover" src="'+(m.cover_url||'')+'">'+
             '<div class="kiosk-info">'+
             '<div class="kiosk-title">'+m.title+'</div>'+
-            '<div class="kiosk-date">'+m.edition_date+'</div>'+
+            '<div class="kiosk-date">'+toFrDate(m.edition_date)+'</div>'+
             '<div class="kiosk-count">'+m.page_count+'/10 pages</div>'+
             '</div>';
         g.appendChild(card);
@@ -523,9 +556,11 @@ function showKioskCreate(){
 
 async function createAlbum(){
     var title=document.getElementById('kioskNewTitle').value.trim();
-    var date=document.getElementById('kioskNewDate').value;
+    var dateRaw=document.getElementById('kioskNewDate').value;
+    var dateISO=toISODate(dateRaw);
     var cover=document.getElementById('kioskNewCover').files[0];
-    if(!title||!date){showToast("Titre et date requis.");return}
+    if(!title){showToast("Titre requis.");return}
+    if(!dateISO){showToast("Date invalide. Format attendu : JJ/MM/AAAA");return}
     if(!cover){showToast("Couverture requise.");return}
     var errC=validateImageFile(cover);if(errC){showToast(errC);return}
 
@@ -534,7 +569,7 @@ async function createAlbum(){
         var compressedCover=await compressImage(cover,{maxWidth:1080,quality:0.8});
         var formData=new FormData();
         formData.append('title',title);
-        formData.append('edition_date',date);
+        formData.append('edition_date',dateISO);
         formData.append('cover',compressedCover,compressedCover.name);
 
         var adminKey=getAdminKey();
@@ -546,7 +581,6 @@ async function createAlbum(){
         var j=await r.json();
         if(!r.ok||!j.success)throw new Error(j.message||'Erreur création album');
 
-        // 🔧 FIX Kimi : injecter le nouvel album dans kioskAlbums avant d'ouvrir le détail
         j.data.page_count = 0;
         kioskAlbums.push(j.data);
 
@@ -570,7 +604,7 @@ async function loadKioskDetail(){
     if(!mag){showToast("Album introuvable.");showKioskList();return}
     document.getElementById('kioskDetailCover').src=mag.cover_url||'';
     document.getElementById('kioskDetailTitle').textContent=mag.title;
-    document.getElementById('kioskDetailDate').textContent=mag.edition_date;
+    document.getElementById('kioskDetailDate').textContent=toFrDate(mag.edition_date);
 
     try{
         var r=await fetch(API_BASE+'/magazines/'+kioskCurrentId+'/pages',{method:'GET'});
@@ -612,17 +646,12 @@ async function deleteKioskPage(pageNumber){
     }catch(e){showToast("Erreur: "+e.message)}finally{setLoading(false)}
 }
 
-// ============================================
-// 🔧 FIX Kimi V11.18.1 : Gestion de l'ajout de pages (mobile)
-// ============================================
 function handleAddPagesSelect(input){
     var files=Array.from(input.files||[]);
-    console.log('[KIOSK] handleAddPagesSelect called, files:', files.length);
     if(!files.length){showToast("Aucun fichier sélectionné."); return;}
     
     var mag=kioskAlbums.find(function(m){return m.id===kioskCurrentId});
     var currentCount=mag?mag.page_count:0;
-    console.log('[KIOSK] Album ID:', kioskCurrentId, 'Current pages:', currentCount);
     
     if(currentCount+kioskAddSelectedPages.length+files.length>10){
         showToast("❌ Dépassement : "+(currentCount+kioskAddSelectedPages.length+files.length)+"/10 pages max.");
@@ -637,10 +666,8 @@ function handleAddPagesSelect(input){
         added++;
     }
     
-    console.log('[KIOSK] Added to queue:', added, 'Total queued:', kioskAddSelectedPages.length);
     input.value='';
     
-    // 🔧 Force le rafraîchissement DOM sur mobile
     setTimeout(function(){
         renderKioskAddQueue();
         if(added>0){
@@ -658,12 +685,10 @@ function renderKioskAddQueue(){
     
     if(!kioskAddSelectedPages.length){
         c.style.display='none';
-        console.log('[KIOSK] Queue empty, hiding container');
         return;
     }
     
     c.style.display='block';
-    console.log('[KIOSK] Queue rendered with', kioskAddSelectedPages.length, 'pages');
     
     document.getElementById('kioskAddQueueCount').textContent=kioskAddSelectedPages.length+' page(s) prête(s)';
     g.innerHTML='';
@@ -686,7 +711,6 @@ function renderKioskAddQueue(){
         g.appendChild(thumb);
     });
 }
-// ============================================
 
 async function uploadNewPages(){
     if(!kioskAddSelectedPages.length)return;
@@ -716,18 +740,20 @@ function showKioskEdit(){
     var mag=kioskAlbums.find(function(m){return m.id===kioskCurrentId});
     if(!mag)return;
     document.getElementById('kioskEditTitle').value=mag.title;
-    document.getElementById('kioskEditDate').value=mag.edition_date;
+    document.getElementById('kioskEditDate').value=toFrDate(mag.edition_date);
     document.getElementById('kioskEditForm').style.display='block';
 }
 
 async function saveKioskEdit(){
     var title=document.getElementById('kioskEditTitle').value.trim();
-    var date=document.getElementById('kioskEditDate').value;
-    if(!title||!date){showToast("Titre et date requis.");return}
+    var dateRaw=document.getElementById('kioskEditDate').value;
+    var dateISO=toISODate(dateRaw);
+    if(!title){showToast("Titre requis.");return}
+    if(!dateISO){showToast("Date invalide. Format attendu : JJ/MM/AAAA");return}
     setLoading(true,'ENREGISTREMENT...');
     try{
         var adminKey=getAdminKey();
-        var r=await fetch(API_BASE+'/magazines/'+kioskCurrentId,{method:'PUT',headers:{'Content-Type':'application/json','x-admin-key':adminKey},body:JSON.stringify({title:title,edition_date:date})});
+        var r=await fetch(API_BASE+'/magazines/'+kioskCurrentId,{method:'PUT',headers:{'Content-Type':'application/json','x-admin-key':adminKey},body:JSON.stringify({title:title,edition_date:dateISO})});
         var j=await r.json();
         if(!j.success)throw new Error("Échec enregistrement");
         showToast("💾 Infos mises à jour",'success');
@@ -783,12 +809,9 @@ function kioskHandleAction(e){
 }
 document.getElementById('kioskCard').addEventListener('click',kioskHandleAction);
 document.getElementById('kioskCard').addEventListener('touchstart',kioskHandleAction,{passive:false});
-// ============================================
-// FIN KIOSQUE MAGAZINE HD
-// ============================================
 
 // ============================================
-// INFO FLASH — CHARGEMENT STATUT AU DÉMARRAGE
+// INFO FLASH
 // ============================================
 async function loadFlashStatus(){
     try{
@@ -826,7 +849,7 @@ async function toggleFlashStatus(){
     var adminKey; try{adminKey=getAdminKey()}catch(e){showToast(e.message);return}
     setLoading(true,'MISE À JOUR...');
     try{
-        var currentActive = isFlashActive;  // 🔧 FIX V11.18.3 : utiliser la variable globale
+        var currentActive = isFlashActive;
         var r = await fetch(API_BASE+'/admin/flash-info/status', {
             method: 'PUT',
             headers: {'Content-Type':'application/json','x-admin-key':adminKey},
@@ -854,9 +877,6 @@ async function toggleFlashStatus(){
     finally{ setLoading(false) }
 }
 
-// ============================================
-// INFO FLASH HD — CORRIGÉ (tactile fiable + serveur)
-// ============================================
 async function uploadFlashInfo(){
     var file = document.getElementById('flashImageInput').files[0], adminKey;
     try{adminKey=getAdminKey()}catch(e){showToast(e.message);return}
@@ -865,7 +885,6 @@ async function uploadFlashInfo(){
     setLoading(true,'COMPRESSION & PUBLICATION...');
     
     try{
-        // Compression auto
         try{
             var compressed = await compressImage(file, {maxWidth:1080, quality:0.8});
             file = compressed;
@@ -890,7 +909,6 @@ async function uploadFlashInfo(){
             container.style.display = 'block';
         }
         
-        // Mettre à jour l'état visuel si le flash était inactif
         if(!isFlashActive){
             isFlashActive = true;
             var st = document.getElementById('flashStatusText'), tb = document.getElementById('toggleFlashBtn');
@@ -904,9 +922,6 @@ async function uploadFlashInfo(){
     finally{ setLoading(false) }
 }
 
-// ============================================
-// INFO FLASH HD — DÉLÉGATION TACTILE (V11.18.2)
-// ============================================
 function flashHandleAction(e){
     var el = e.target.closest('[data-action]');
     if(!el || !document.getElementById('flashCard').contains(el)) return;
@@ -919,12 +934,9 @@ function flashHandleAction(e){
 }
 document.getElementById('flashCard').addEventListener('click', flashHandleAction);
 document.getElementById('flashCard').addEventListener('touchstart', flashHandleAction, {passive:false});
-// ============================================
-// FIN INFO FLASH HD
-// ============================================
 
 // ============================================
-// TICKET DE SESSION HD — CORRIGÉ (tactile fiable + serveur)
+// TICKET DE SESSION HD
 // ============================================
 async function loadTicketStatus(){
     try {
@@ -956,7 +968,6 @@ async function uploadSessionTicket(){
     setLoading(true, 'COMPRESSION & PUBLICATION...');
 
     try {
-        // 🔧 FIX V11.18.4 : fallback si compression échoue (même patron que Flash)
         try {
             var compressed = await compressImage(file, {maxWidth: 1080, quality: 0.8});
             file = compressed;
@@ -1001,9 +1012,6 @@ function ticketHandleAction(e){
 }
 document.getElementById('ticketCard').addEventListener('click', ticketHandleAction);
 document.getElementById('ticketCard').addEventListener('touchstart', ticketHandleAction, {passive: false});
-// ============================================
-// FIN TICKET DE SESSION HD
-// ============================================
 
 async function loadVrpPerformance(){
     var adminKey;try{adminKey=getAdminKey()}catch(e){showToast(e.message);return}
@@ -1192,7 +1200,7 @@ function parseTelegramTextClient(rawText){
     out.match_info.time_str=timeM?timeM[1].trim():null;
     out.match_info.league_name=leagueM?leagueM[1].trim():'Ligue Internationale';
     out.match_info.irg_index=irgM?Number(irgM[1]):80;
-    out.match_info.rank_in_category=1; // V11.17.5 : classement par IRG côté API
+    out.match_info.rank_in_category=1;
 
     if(out.match_info.home_team&&out.match_info.away_team&&out.match_info.league_name){
         out.publication_title=out.match_info.home_team+' vs '+out.match_info.away_team+' — '+out.match_info.league_name;
@@ -1265,16 +1273,7 @@ function parseTelegramTextClient(rawText){
     return out;
 }
 
-// ============================================
-// 📊 FONCTIONS DE GESTION DES SESSIONS ACTIVES
-// ============================================
-
-// Variable globale pour stocker les sessions actives
 var activeSessions = {};
-
-// ╔══════════════════════════════════════════════════════════════════════╗
-// ║  LOGIQUE UI — DASHBOARD · SAISIE · PREVIEW · ÉDITION · PUBLICATION  ║
-// ╚══════════════════════════════════════════════════════════════════════╝
 
 const CATEGORIES=[
     {key:'ELITE_MONDIALE', label:'🏆 ÉLITE MONDIALE', quota:10, color:'#FFD700'},
@@ -1290,8 +1289,6 @@ let currentParsed=null;
 let existingMatches={};
 
 window.addEventListener('DOMContentLoaded', async function(){
-    // Charger les sessions actives en premier
-    // loadActiveSessions() supprimée - maintenant gérée via /matches/:category
     await loadDashboard();
     
     var btn=document.getElementById('testKeyBtn');
@@ -1327,11 +1324,9 @@ window.addEventListener('DOMContentLoaded', async function(){
         },{passive:false});
     }
     
-    // 🔧 FIX Kimi V11.18.1 : Écouteur programmatique pour l'input file Kiosque (mobile)
     var kioskAddInput = document.getElementById('kioskAddPages');
     if(kioskAddInput){
         kioskAddInput.addEventListener('change', function(e){
-            console.log('[KIOSK] Change event fired, files:', this.files ? this.files.length : 0);
             handleAddPagesSelect(this);
         });
     }
@@ -1345,12 +1340,9 @@ async function loadDashboard(){
     
     results.forEach((res,i)=>{ 
         existingMatches[CATEGORIES[i].key]=(res.success&&Array.isArray(res.data))?res.data:[]; 
-        // 🔧 Utiliser res.session directement depuis /matches/:category
         if (res.session) {
             activeSessions[CATEGORIES[i].key] = res.session;
-            console.log('[DASHBOARD] Session chargée pour', CATEGORIES[i].key, ':', res.session);
         } else {
-            // Fallback si le backend ne renvoie pas session (version non corrigée)
             activeSessions[CATEGORIES[i].key] = { 
                 id: null, 
                 number: null, 
@@ -1370,14 +1362,11 @@ function renderDashboard(){
     const grid=document.getElementById('categoriesGrid');
     grid.innerHTML='';
     CATEGORIES.forEach(cat=>{
-        // 🔧 SESSION ACTIVE : récupérer le compteur depuis activeSessions
         const sessionData = activeSessions[cat.key] || {};
         const activeCount = sessionData.current_count || 0;
         const sessionNumber = sessionData.number || '?';
         const isActiveFull = activeCount >= cat.quota;
-        const canImport = sessionData.can_import !== false;
         
-        // 🔧 Historique conservé pour l'affichage des matchs
         const matches = existingMatches[cat.key] || [];
         const sorted = [...matches].sort((a,b)=>{ 
             const ia=Number(a.irg_index??a.irg??0), ib=Number(b.irg_index??b.irg??0); 
@@ -1389,7 +1378,6 @@ function renderDashboard(){
             irgHtml+=`<div class="cat-irg-item"><span class="cat-irg-teams">${m.home_team||'??'} vs ${m.away_team||'??'}</span><span class="cat-irg-score">IRG ${irg}</span></div>`; 
         });
         
-        // 🔧 Badge basé sur activeCount (session active)
         const badgeClass = isActiveFull ? 'full' : (activeCount > 0 ? 'ok' : 'warn');
         const badgeText = isActiveFull ? 'COMPLET' : (activeCount + '/' + cat.quota);
         const pct = Math.min(100, (activeCount / cat.quota) * 100);
@@ -1424,7 +1412,6 @@ function openSaisie(cat){
     document.getElementById('saisieCatTitle').textContent=cat.label;
     document.getElementById('publishCatName').textContent=cat.label;
     
-    // 🔧 Utiliser le compteur de la session active
     const sessionData = activeSessions[cat.key] || {};
     const activeCount = sessionData.current_count || 0;
     document.getElementById('saisieCatCounter').textContent=activeCount+'/'+cat.quota;
@@ -1462,13 +1449,11 @@ function renderPreview(parsed){
     const box=document.getElementById('fichePreview');
     box.innerHTML='';
 
-    // Infos match
     const info=document.createElement('div');
     info.className='match-info-card';
     info.innerHTML=`<div class="match-info-row"><span class="match-info-label">MATCH</span><span class="match-info-value">${parsed.match_info.home_team||'??'} vs ${parsed.match_info.away_team||'??'}</span></div><div class="match-info-row"><span class="match-info-label">COMPÉTITION</span><span class="match-info-value">${parsed.match_info.league_name||'??'}</span></div><div class="match-info-row"><span class="match-info-label">DATE / HEURE</span><span class="match-info-value">${parsed.match_info.date_str||'??'} · ${parsed.match_info.time_str||'??'}</span></div><div class="match-info-row"><span class="match-info-label">IRG</span><span class="match-info-value" style="color:var(--gold-bright)">${parsed.match_info.irg_index??'?'}/100</span></div>`;
     box.appendChild(info);
 
-    // Sections
     const sections=[
         {key:'pari_du_jour', title:'🎯 PARI DU JOUR', arr:parsed.pari_du_jour?[parsed.pari_du_jour]:[], max:1},
         {key:'top_5_premium', title:'🏆 TOP 5 PREMIUM', arr:parsed.top_5_premium, max:5},
@@ -1514,7 +1499,6 @@ function renderPreview(parsed){
             card.innerHTML=`<div class="preview-rank">${rankLabel}</div><div class="preview-market">${item.market_name||'<span style="color:var(--alert-red)">Marché non détecté</span>'}</div><div class="preview-metrics">${metricsHtml}</div><div class="preview-actions"><button data-action="edit" data-sec="${sec.key}" data-idx="${idx}">✏️ Modifier</button>${item.section_type!=='BANNED'?`<button data-action="delete" data-sec="${sec.key}" data-idx="${idx}">🗑️ Supprimer</button>`:''}</div>`;
             wrap.appendChild(card);
 
-            // Formulaire d'édition caché
             const editForm=document.createElement('div');
             editForm.className='edit-form';
             editForm.id=`edit-${sec.key}-${idx}`;
@@ -1614,7 +1598,6 @@ async function publierFiche(){
     const adminKey=getAdminKey();
     if(!adminKey){showToast('Saisissez la clé admin.','error');return;}
 
-    // Nettoyage : arrondir les pourcentages décimaux pour PostgreSQL INTEGER
     const clean=JSON.parse(JSON.stringify(currentParsed));
     ['pari_du_jour','value_bet_premium','value_bet_speculatif','ticket_combine'].forEach(k=>{
         if(clean[k]){if(clean[k].probability_pct!=null)clean[k].probability_pct=Math.round(clean[k].probability_pct);if(clean[k].robustness_pct!=null)clean[k].robustness_pct=Math.round(clean[k].robustness_pct);}
@@ -1625,10 +1608,6 @@ async function publierFiche(){
     currentParsed=clean;
     const cleanText=regenerateFiche();
     if(!cleanText){showToast('Aucune donnée à publier.','error');return;}
-
-    // 🔧 SUPPRESSION DU BLOCAGE FRONTEND
-    // Le quota est maintenant géré uniquement par le backend (database.js)
-    // Le frontend envoie toujours la fiche, le backend décide de la rotation
 
     setLoading(true,'PUBLICATION...');
     try{
@@ -1641,8 +1620,6 @@ async function publierFiche(){
             document.getElementById('btnPublier').classList.remove('active');
             currentParsed=null;
             
-            // 🔧 CRITIQUE : Recharger l'état depuis le backend après succès
-            // On recharge le dashboard qui récupère res.session depuis /matches/:category
             await loadDashboard();
         }else{
             const msg=j.message||j.code||JSON.stringify(j.errors||j);
@@ -1653,4 +1630,4 @@ async function publierFiche(){
 }
 </script>
 </body>
-</html>
+  </html>
