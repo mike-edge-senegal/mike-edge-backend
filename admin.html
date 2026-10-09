@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>🎛️ COCKPIT ADMIN — MIKE EDGE V11.18.5</title>
+<title>🎛️ COCKPIT ADMIN — MIKE EDGE V11.18.5c</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/dark.css">
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
@@ -143,7 +143,7 @@ th{background-color:rgba(212,175,55,0.1);color:var(--gold)}
 
 <div style="text-align:center;margin-bottom:16px;padding-top:10px;">
 <h1 style="font-size:20px;color:var(--gold);letter-spacing:1px;">🎛️ COCKPIT ADMIN MIKE EDGE</h1>
-<p style="font-size:11px;color:var(--text-muted);margin-top:2px;">V11.18.5</p>
+<p style="font-size:11px;color:var(--text-muted);margin-top:2px;">V11.18.5c</p>
 <p id="apiUrlDisplay" style="font-size:10px;color:#666;margin-top:4px;"></p>
 </div>
 
@@ -311,19 +311,31 @@ function validateImageFile(f){if(!f)return"Aucun fichier.";if(!f.type.startsWith
 // ============================================
 // 📅 HELPERS DATE (inspirés de Kimi IA)
 // ============================================
-// Convertit "JJ/MM/AAAA" ou "AAAA-MM-JJ" → "AAAA-MM-JJ" (format API Supabase)
+// Convertit "JJ/MM/AAAA", "JJMMAAAA", "JJ-MM-AAAA" ou "AAAA-MM-JJ" → "AAAA-MM-JJ"
 function toISODate(str){
     if(!str) return null;
     str = String(str).trim();
-    // Format JJ/MM/AAAA ou JJ-MM-AAAA ou JJ.MM.AAAA
+
+    // 🔧 FIX V11.18.5c : accepte aussi JJMMAAAA (8 chiffres sans séparateur)
+    // (claviers mobiles qui n'ont pas de touche "/")
     var m = str.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);
+    if(!m){
+        var compact = str.match(/^(\d{2})(\d{2})(\d{4})$/);
+        if(compact){
+            m = [str, compact[1], compact[2], compact[3]];
+        }
+    }
+
     if(m){
         var d = m[1].padStart(2,'0'), mo = m[2].padStart(2,'0');
-        // Validation basique
         var day = parseInt(d,10), month = parseInt(mo,10);
         if(day<1 || day>31 || month<1 || month>12) return null;
+        // Validation calendrier réelle (rejette 30/02, 31/04...)
+        var dt = new Date(Number(m[3]), month-1, day);
+        if(dt.getFullYear()!==Number(m[3]) || dt.getMonth()!==month-1 || dt.getDate()!==day) return null;
         return m[3] + '-' + mo + '-' + d;
     }
+
     // Déjà au format ISO
     if(/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
     return null;
@@ -334,6 +346,23 @@ function toFrDate(iso){
     if(!iso) return '';
     var m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
     return m ? m[3]+'/'+m[2]+'/'+m[1] : iso;
+}
+
+// 🔧 FIX V11.18.5c : auto-insertion des "/" à la frappe
+// (permet de taper 09102026 → devient 09/10/2026 automatiquement)
+function attachDateAutoFormat(inputId){
+    var el = document.getElementById(inputId);
+    if(!el) return;
+    el.addEventListener('input', function(e){
+        var v = e.target.value.replace(/\D/g,'');
+        if(v.length > 8) v = v.slice(0,8);
+        var formatted = v;
+        if(v.length > 4) formatted = v.slice(0,2)+'/'+v.slice(2,4)+'/'+v.slice(4);
+        else if(v.length > 2) formatted = v.slice(0,2)+'/'+v.slice(2);
+        if(e.target.value !== formatted){
+            e.target.value = formatted;
+        }
+    });
 }
 
 // ============================================
@@ -445,18 +474,16 @@ window.addEventListener('DOMContentLoaded', function(){
     var savedFiche = localStorage.getItem('mike_fiche_draft');
     if(savedFiche){ document.getElementById('ficheInput').value = savedFiche; }
     
-    // 🗓️ FIX V11.18.5 : Flatpickr hybride
-    // - Si flatpickr est chargé → calendrier visuel s'ouvre au clic
-    // - Si flatpickr ne charge pas → saisie manuelle JJ/MM/AAAA fonctionne (fallback)
+    // 🗓️ FIX V11.18.5c : Flatpickr hybride + auto-format date
     if (typeof flatpickr !== 'undefined') {
         try {
-            flatpickr('#kioskNewDate', {
+            window.fpNewDate = flatpickr('#kioskNewDate', {
                 dateFormat: 'd/m/Y',
                 allowInput: true,
                 locale: 'fr',
                 disableMobile: true,
             });
-            flatpickr('#kioskEditDate', {
+            window.fpEditDate = flatpickr('#kioskEditDate', {
                 dateFormat: 'd/m/Y',
                 allowInput: true,
                 locale: 'fr',
@@ -469,6 +496,10 @@ window.addEventListener('DOMContentLoaded', function(){
     } else {
         console.warn('[FLATPICKR] Lib non chargée — saisie manuelle active');
     }
+    
+    // 🔧 FIX V11.18.5c : auto-insertion des "/" (fonctionne avec ou sans flatpickr)
+    attachDateAutoFormat('kioskNewDate');
+    attachDateAutoFormat('kioskEditDate');
     
     loadKioskList();
 });
@@ -522,7 +553,7 @@ function renderKioskGrid(){
         card.innerHTML=
             '<img class="kiosk-cover" src="'+(m.cover_url||'')+'">'+
             '<div class="kiosk-info">'+
-            '<div class="kiosk-title">'+m.title+'</div>'+
+            '<div class="kiosk-title">'+String(m.title||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')+'</div>'+
             '<div class="kiosk-date">'+toFrDate(m.edition_date)+'</div>'+
             '<div class="kiosk-count">'+m.page_count+'/10 pages</div>'+
             '</div>';
@@ -551,6 +582,7 @@ function showKioskCreate(){
     document.getElementById('kioskCreate').style.display='block';
     document.getElementById('kioskNewTitle').value='';
     document.getElementById('kioskNewDate').value='';
+    if(window.fpNewDate) window.fpNewDate.clear();
     document.getElementById('kioskNewCover').value='';
 }
 
@@ -741,6 +773,7 @@ function showKioskEdit(){
     if(!mag)return;
     document.getElementById('kioskEditTitle').value=mag.title;
     document.getElementById('kioskEditDate').value=toFrDate(mag.edition_date);
+    if(window.fpEditDate && mag.edition_date) window.fpEditDate.setDate(mag.edition_date, false);
     document.getElementById('kioskEditForm').style.display='block';
 }
 
