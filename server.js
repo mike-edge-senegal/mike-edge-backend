@@ -10,7 +10,7 @@
  *   - Table dédiée : public.password_reset_otps
  *   - /forgot-password : génère un OTP 6 chiffres + bcrypt + SMS (PRODUCTION)
  *   - /reset-password : valide l'OTP + change le mot de passe (transaction atomique)
- *   - Mode TEST : vérifie user, accepte 1234, ne touche pas password_reset_otps
+ *   - Reset password : désactivé par défaut via ALLOW_PASSWORD_RESET
  *   - Mode PRODUCTION : anti-énumération sur numéro inexistant, OTP sécurisé
  *   - Aucun impact sur otp_codes (F-4.2 / F-4.3)
  * -------------------------------------------------------------------
@@ -476,6 +476,14 @@ app.post('/api/v1/auth/login', mutationLimiter, async (req, res) => {
 
 // --- FORGOT PASSWORD OTP (F-4.4) ---
 app.post('/api/v1/auth/forgot-password', mutationLimiter, async (req, res) => {
+    if (process.env.ALLOW_PASSWORD_RESET !== 'true') {
+        return res.status(503).json({
+            success: false,
+            code: 'ERR_RESET_DISABLED',
+            message: 'La réinitialisation de mot de passe est temporairement indisponible. Contactez le support.',
+        });
+    }
+
     const { phone } = req.body;
 
     if (!phone || typeof phone !== 'string' || phone.trim().length < 8) {
@@ -581,6 +589,14 @@ app.post('/api/v1/auth/forgot-password', mutationLimiter, async (req, res) => {
 
 // --- RESET PASSWORD OTP (F-4.4) ---
 app.post('/api/v1/auth/reset-password', mutationLimiter, async (req, res) => {
+    if (process.env.ALLOW_PASSWORD_RESET !== 'true') {
+        return res.status(503).json({
+            success: false,
+            code: 'ERR_RESET_DISABLED',
+            message: 'La réinitialisation de mot de passe est temporairement indisponible. Contactez le support.',
+        });
+    }
+
     const { phone, otp, newPassword } = req.body;
 
     if (!phone || typeof phone !== 'string' || phone.trim().length < 8) {
@@ -594,32 +610,6 @@ app.post('/api/v1/auth/reset-password', mutationLimiter, async (req, res) => {
     }
 
     const cleanPhone = phone.trim();
-
-    // =====================================================
-    // MODE TEST : bypass 1234 (cohérence avec le reste de l'app)
-    // =====================================================
-    if (config.AUTH_MODE === 'TEST') {
-        try {
-            if (String(otp) !== '1234') {
-                return res.status(400).json({ success: false, code: 'ERR_INVALID_OTP', message: 'Code SMS incorrect.' });
-            }
-
-            const hashedPassword = await bcrypt.hash(newPassword, config.OTP_BCRYPT_ROUNDS);
-            const updateResult = await pool.query(
-                'UPDATE users SET password_hash = $1 WHERE phone = $2 RETURNING id',
-                [hashedPassword, cleanPhone]
-            );
-
-            if (updateResult.rows.length === 0) {
-                return res.status(404).json({ success: false, code: 'ERR_USER_NOT_FOUND', message: 'Utilisateur introuvable.' });
-            }
-
-            return res.json({ success: true, message: 'Mot de passe réinitialisé avec succès.' });
-        } catch (err) {
-            console.error('❌ Erreur Reset Password (TEST):', err.message);
-            return res.status(500).json({ success: false, code: 'ERR_DB_RESET' });
-        }
-    }
 
     // =====================================================
     // MODE PRODUCTION : OTP configurable via config.OTP_PRODUCTION_LENGTH
