@@ -38,6 +38,7 @@ const {
 // 🆕 F-4.2 : modules OTP
 const config = require('./src/config');
 const { StubSmsProvider } = require('./src/smsProvider');
+const { signToken } = require('./src/auth');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -465,9 +466,11 @@ app.post('/api/v1/auth/login', mutationLimiter, async (req, res) => {
             return res.status(401).json({ success: false, code: 'ERR_AUTH_FAILED', message: 'Identifiants incorrects.' });
         }
 
+        const token = signToken(user);
+
         delete user.password_hash;
 
-        res.json({ success: true, user });
+        res.json({ success: true, user, token });
     } catch (err) {
         console.error('❌ Erreur Auth:', err.message);
         res.status(500).json({ success: false, code: 'ERR_DB_AUTH' });
