@@ -639,7 +639,11 @@ async function loadKioskDetail(){
     document.getElementById('kioskDetailDate').textContent=toFrDate(mag.edition_date);
 
     try{
-        var r=await fetch(API_BASE+'/magazines/'+kioskCurrentId+'/pages',{method:'GET'});
+        var adminKey=getAdminKey();
+        var r=await fetch(API_BASE+'/admin/magazines/'+kioskCurrentId+'/pages',{
+            method:'GET',
+            headers:{'x-admin-key':adminKey}
+        });
         var j=await r.json();
         var pages=j.success?j.data:[];
         document.getElementById('kioskDetailCounter').textContent=pages.length+'/10';
@@ -663,7 +667,10 @@ async function deleteKioskPage(pageNumber){
     setLoading(true,'SUPPRESSION...');
     try{
         var adminKey=getAdminKey();
-        var pagesR=await fetch(API_BASE+'/magazines/'+kioskCurrentId+'/pages',{method:'GET'});
+        var pagesR=await fetch(API_BASE+'/admin/magazines/'+kioskCurrentId+'/pages',{
+            method:'GET',
+            headers:{'x-admin-key':adminKey}
+        });
         var pagesJ=await pagesR.json();
         if(!pagesJ.success)throw new Error('Impossible de récupérer les pages');
         var page=pagesJ.data.find(function(p){return p.page_number===pageNumber});
@@ -848,7 +855,11 @@ document.getElementById('kioskCard').addEventListener('touchstart',kioskHandleAc
 // ============================================
 async function loadFlashStatus(){
     try{
-        var r = await fetch(API_BASE+'/admin/flash-info/status', {method:'GET'});
+        var adminKey = getAdminKey();
+        var r = await fetch(API_BASE+'/admin/flash-info/status', {
+            method:'GET',
+            headers:{'x-admin-key':adminKey}
+        });
         if(!r.ok) return;
         var j = await r.json();
         if(j.success && j.data){
@@ -973,7 +984,11 @@ document.getElementById('flashCard').addEventListener('touchstart', flashHandleA
 // ============================================
 async function loadTicketStatus(){
     try {
-        var r = await fetch(API_BASE + '/admin/session-ticket', { method: 'GET' });
+        var adminKey = getAdminKey();
+        var r = await fetch(API_BASE + '/admin/session-ticket', {
+            method:'GET',
+            headers:{'x-admin-key':adminKey}
+        });
         if(!r.ok) return;
         var j = await r.json();
         if(j.success && j.data && j.data.image_url){

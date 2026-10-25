@@ -1127,6 +1127,28 @@ app.get('/api/v1/admin/magazines', readLimiter, verifyAdminKey, async (req, res)
     }
 });
 
+app.get('/api/v1/admin/magazines/:id/pages', readLimiter, verifyAdminKey, async (req, res) => {
+    const magazineId = parseInt(req.params.id, 10);
+    if (isNaN(magazineId) || magazineId <= 0) {
+        return res.status(400).json({ success: false, code: 'ERR_INVALID_ID', message: "L'ID du magazine doit être un entier positif." });
+    }
+    try {
+        const query = `
+            SELECT mp.id, mp.page_number, mp.image_url
+            FROM magazine_pages mp
+            INNER JOIN magazines m ON m.id = mp.magazine_id
+            WHERE mp.magazine_id = $1
+              AND m.is_active = true
+            ORDER BY mp.page_number ASC
+        `;
+        const result = await pool.query(query, [magazineId]);
+        return res.json({ success: true, data: result.rows });
+    } catch (err) {
+        console.error('❌ Erreur admin pages magazine:', err.message);
+        return res.status(500).json({ success: false, code: 'ERR_FETCH_ADMIN_PAGES' });
+    }
+});
+
 app.post('/api/v1/admin/magazines', mutationLimiter, verifyAdminKey, upload.single('cover'), async (req, res) => {
     try {
         const { title, edition_date } = req.body;
