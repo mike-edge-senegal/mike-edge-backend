@@ -38,7 +38,11 @@ const {
 // 🆕 F-4.2 : modules OTP
 const config = require('./src/config');
 const { StubSmsProvider } = require('./src/smsProvider');
-const { signToken } = require('./src/auth');
+const {
+    signToken,
+    requireAuth,
+    requirePremium
+} = require('./src/auth');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -940,7 +944,7 @@ app.get('/api/v1/vrp/stats', readLimiter, verifyAdminKey, async (req, res) => {
     }
 });
 
-app.get('/api/v1/matches/:category', async (req, res) => {
+app.get('/api/v1/matches/:category', requireAuth, requirePremium, async (req, res) => {
     const category = req.params.category.toUpperCase();
     console.log('[API] GET /matches/' + category);
 
@@ -1049,7 +1053,7 @@ app.get('/api/v1/matches/:category', async (req, res) => {
     }
 });
 
-app.get('/api/v1/matches/detail/:id', async (req, res) => {
+app.get('/api/v1/matches/detail/:id', requireAuth, requirePremium, async (req, res) => {
     const matchId = parseInt(req.params.id, 10);
     if (isNaN(matchId) || matchId <= 0) {
         return res.status(400).json({ success: false, code: 'ERR_INVALID_ID', message: "L'ID du match doit être un entier positif." });
@@ -1355,7 +1359,7 @@ app.delete('/api/v1/magazines/pages/:pageId', mutationLimiter, verifyAdminKey, a
 // INFO FLASH HD — GESTION ADMIN (V11.18.2)
 // ==========================================
 
-app.get('/api/v1/admin/flash-info/status', async (req, res) => {
+app.get('/api/v1/admin/flash-info/status', readLimiter, verifyAdminKey, async (req, res) => {
     try {
         const result = await pool.query('SELECT is_active, image_url FROM flash_infos LIMIT 1');
         if (result.rows.length === 0) {
@@ -1444,7 +1448,7 @@ app.put('/api/v1/admin/flash-info/status', mutationLimiter, verifyAdminKey, asyn
 // MODULE 4 — TICKET DE SESSION HD (V11.18.4)
 // ============================================
 
-app.get('/api/v1/admin/session-ticket', async (req, res) => {
+app.get('/api/v1/admin/session-ticket', readLimiter, verifyAdminKey, async (req, res) => {
     try {
         const result = await pool.query(
             "SELECT value FROM system_configs WHERE key = 'session_ticket_url'"
