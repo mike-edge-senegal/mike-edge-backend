@@ -970,7 +970,7 @@ app.get('/api/v1/admin/matches/:category', readLimiter, verifyAdminKey, async (r
         `;
 
         const sessionResult = await pool.query(sessionQuery, [category]);
-        const maxQuota = category === 'ELITE_MONDIALE' ? 10 : 5;
+        const maxQuota = category === 'ELITE_MONDIALE' ? 10 : 3;
 
         if (sessionResult.rows.length === 0) {
             return res.json({
@@ -1078,7 +1078,7 @@ app.get('/api/v1/matches/:category', requireAuth, requirePremium, async (req, re
 
         let session = null;
         let activeCount = 0;
-        const maxQuota = category === 'ELITE_MONDIALE' ? 10 : 5;
+        const maxQuota = category === 'ELITE_MONDIALE' ? 10 : 3;
 
         if (sessionResult.rows.length > 0) {
             const sessionRow = sessionResult.rows[0];

@@ -610,7 +610,7 @@ async function savePublicationTransaction(
             [sessionId]
         );
         const currentCount = parseInt(countRes.rows[0].cnt, 10);
-        const maxQuota = categoryName === 'ELITE_MONDIALE' ? 10 : 5;
+        const maxQuota = categoryName === 'ELITE_MONDIALE' ? 10 : 3;
 
         if (currentCount >= maxQuota) {
             // Fermer la session actuelle
