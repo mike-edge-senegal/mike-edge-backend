@@ -1381,29 +1381,75 @@ window.addEventListener('DOMContentLoaded', async function(){
 });
 
 async function loadDashboard(){
-    document.getElementById('pronosGlobalStatus').textContent='⏳ Sync...';
-    
-    const promises=CATEGORIES.map(c=>fetch(API_BASE+'/matches/'+c.key,{headers:{'Accept':'application/json'}}).then(r=>r.ok?r.json():{success:false,data:[],session:null}).catch(()=>({success:false,data:[],session:null})));
-    const results=await Promise.all(promises);
-    
-    results.forEach((res,i)=>{ 
-        existingMatches[CATEGORIES[i].key]=(res.success&&Array.isArray(res.data))?res.data:[]; 
-        if (res.session) {
-            activeSessions[CATEGORIES[i].key] = res.session;
-        } else {
-            activeSessions[CATEGORIES[i].key] = { 
-                id: null, 
-                number: null, 
-                status: 'UNKNOWN', 
-                current_count: 0, 
-                max_quota: CATEGORIES[i].key === 'ELITE_MONDIALE' ? 10 : 5, 
-                remaining_slots: CATEGORIES[i].key === 'ELITE_MONDIALE' ? 10 : 5, 
-                can_import: true 
+    const statusEl = document.getElementById('pronosGlobalStatus');
+    const adminKey = getAdminKey();
+
+    if (!adminKey) {
+        statusEl.textContent = '🔑 Saisissez la clé admin puis testez-la.';
+        return;
+    }
+
+    statusEl.textContent = '⏳ Synchronisation...';
+
+    const results = await Promise.all(CATEGORIES.map(async c => {
+        try {
+            const response = await fetch(
+                API_BASE + '/admin/matches/' + encodeURIComponent(c.key),
+                {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                        'x-admin-key': adminKey
+                    }
+                }
+            );
+
+            let payload;
+            try {
+                payload = await response.json();
+            } catch {
+                throw new Error('Réponse serveur non JSON (HTTP ' + response.status + ')');
+            }
+
+            if (!response.ok || payload.success !== true ||
+                !Array.isArray(payload.data) || !payload.session) {
+                throw new Error(
+                    payload.message || 'Erreur HTTP ' + response.status
+                );
+            }
+
+            return { ok: true, category: c.key, payload };
+        } catch (err) {
+            return {
+                ok: false,
+                category: c.key,
+                error: err.message || 'Erreur réseau'
             };
         }
+    }));
+
+    const failures = [];
+
+    results.forEach(result => {
+        if (!result.ok) {
+            failures.push(result.category + ': ' + result.error);
+            return;
+        }
+
+        existingMatches[result.category] = result.payload.data;
+        activeSessions[result.category] = result.payload.session;
     });
+
     renderDashboard();
-    document.getElementById('pronosGlobalStatus').textContent='✅ Sync';
+
+    if (failures.length) {
+        console.error('[ADMIN DASHBOARD] Échecs de synchronisation:', failures);
+        statusEl.textContent =
+            '⚠️ Synchronisation incomplète (' + failures.length +
+            '/' + CATEGORIES.length + '). Voir les erreurs dans la console.';
+    } else {
+        statusEl.textContent = '✅ Synchronisation réussie';
+    }
 }
 
 function renderDashboard(){

@@ -944,6 +944,111 @@ app.get('/api/v1/vrp/stats', readLimiter, verifyAdminKey, async (req, res) => {
     }
 });
 
+// ============================================================
+// ADMIN — Lecture des matchs et des sessions actives
+// Protégé par ADMIN_KEY. Ne remplace pas la route mobile JWT.
+// ============================================================
+app.get('/api/v1/admin/matches/:category', readLimiter, verifyAdminKey, async (req, res) => {
+    const category = req.params.category.toUpperCase();
+
+    if (!ALLOWED_CATEGORIES.includes(category)) {
+        return res.status(400).json({
+            success: false,
+            code: 'ERR_INVALID_CATEGORY',
+            message: `Catégorie invalide. Choix autorisés : ${ALLOWED_CATEGORIES.join(', ')}`
+        });
+    }
+
+    try {
+        const sessionQuery = `
+            SELECT id, session_number, status
+            FROM category_sessions
+            WHERE category_name = $1
+              AND status = 'ACTIVE'
+            ORDER BY session_number DESC
+            LIMIT 1
+        `;
+
+        const sessionResult = await pool.query(sessionQuery, [category]);
+        const maxQuota = category === 'ELITE_MONDIALE' ? 10 : 5;
+
+        if (sessionResult.rows.length === 0) {
+            return res.json({
+                success: true,
+                data: [],
+                session: {
+                    id: null,
+                    number: null,
+                    status: 'NONE',
+                    current_count: 0,
+                    max_quota: maxQuota,
+                    remaining_slots: maxQuota,
+                    can_import: true
+                }
+            });
+        }
+
+        const sessionRow = sessionResult.rows[0];
+
+        const countQuery = `
+            SELECT COUNT(*) AS cnt
+            FROM match_category_rankings
+            WHERE session_id = $1
+        `;
+
+        const countResult = await pool.query(countQuery, [sessionRow.id]);
+        const activeCount = parseInt(countResult.rows[0].cnt, 10);
+
+        const session = {
+            id: sessionRow.id,
+            number: sessionRow.session_number,
+            status: sessionRow.status,
+            current_count: activeCount,
+            max_quota: maxQuota,
+            remaining_slots: Math.max(0, maxQuota - activeCount),
+            can_import: activeCount < maxQuota
+        };
+
+        const query = `
+            SELECT
+                m.id, m.match_datetime, m.irg_index,
+                l.name AS league_name,
+                t1.name AS home_team,
+                t2.name AS away_team,
+                mcr.rank_in_category,
+                COALESCE(
+                    (SELECT json_agg(b) FROM bets b WHERE b.match_id = m.id),
+                    '[]'::json
+                ) AS bets
+            FROM match_category_rankings mcr
+            LEFT JOIN matches m ON mcr.match_id::integer = m.id
+            LEFT JOIN leagues l ON m.league_id = l.id
+            LEFT JOIN teams t1 ON m.home_team_id = t1.id
+            LEFT JOIN teams t2 ON m.away_team_id = t2.id
+            WHERE mcr.category_name = $1
+              AND mcr.session_id = $2
+            ORDER BY m.irg_index DESC NULLS LAST
+            LIMIT 50
+        `;
+
+        const result = await pool.query(query, [category, session.id]);
+
+        return res.json({
+            success: true,
+            data: result.rows,
+            session
+        });
+
+    } catch (err) {
+        console.error('[ADMIN MATCHES] Erreur pour ' + category + ':', err.message);
+        return res.status(500).json({
+            success: false,
+            code: 'ERR_FETCH_MATCHES',
+            message: 'Impossible de charger les matchs.'
+        });
+    }
+});
+
 app.get('/api/v1/matches/:category', requireAuth, requirePremium, async (req, res) => {
     const category = req.params.category.toUpperCase();
     console.log('[API] GET /matches/' + category);
