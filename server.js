@@ -251,7 +251,7 @@ app.post('/api/v1/auth/register', mutationLimiter, async (req, res) => {
                 `INSERT INTO users (phone, password_hash, role, status, referral_code, referred_by_id, subscription_expiry)
                  VALUES ($1, $2, $3, $4, $5, $6, $7)
                  RETURNING id, phone, role, status, referral_code, subscription_expiry`,
-                [cleanPhone, hashedPassword, 'SUBSCRIBER', 'ACTIVE', newReferralCode, referredById, new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)]
+                [cleanPhone, hashedPassword, 'SUBSCRIBER', 'INACTIVE', newReferralCode, referredById, null]
             );
             newUser = insertResult.rows[0];
             delete newUser.password_hash;
@@ -418,22 +418,61 @@ app.post('/api/v1/auth/verify-otp', mutationLimiter, async (req, res) => {
             return res.status(400).json({ success: false, code: 'ERR_INVALID_OTP', message: 'Code OTP invalide.' });
         }
 
-        await client.query(
-            `UPDATE otp_codes SET used = true, consumed_at = NOW() WHERE id = $1`,
-            [otpRow.id]
-        );
-        await client.query('COMMIT');
-
-        const userRes = await pool.query(
-            'SELECT id, phone, role, status, referral_code, subscription_expiry FROM users WHERE phone = $1',
+        // Verrouiller le compte dans la transaction de vérification OTP.
+        const userRes = await client.query(
+            `SELECT id, phone, role, status, referral_code, subscription_expiry
+             FROM users
+             WHERE phone = $1
+             FOR UPDATE`,
             [cleanPhone]
         );
 
-        if (userRes.rows.length === 0) {
+        if (userRes.rows.length !== 1) {
+            await client.query('ROLLBACK');
             return res.status(404).json({ success: false, code: 'ERR_USER_NOT_FOUND', message: 'Utilisateur introuvable.' });
         }
 
-        return res.json({ success: true, user: userRes.rows[0] });
+        let verifiedUser = userRes.rows[0];
+
+        if (verifiedUser.status === 'INACTIVE' && verifiedUser.subscription_expiry === null) {
+            const activationRes = await client.query(
+                `UPDATE users
+                 SET status = 'ACTIVE',
+                     subscription_expiry = NOW() + INTERVAL '30 days'
+                 WHERE id = $1
+                   AND status = 'INACTIVE'
+                   AND subscription_expiry IS NULL
+                 RETURNING id, phone, role, status, referral_code, subscription_expiry`,
+                [verifiedUser.id]
+            );
+
+            if (activationRes.rowCount !== 1 || activationRes.rows.length !== 1) {
+                await client.query('ROLLBACK');
+                return res.status(409).json({ success: false, code: 'ERR_ACCOUNT_STATE_CONFLICT', message: 'État du compte incompatible avec l’activation.' });
+            }
+
+            verifiedUser = activationRes.rows[0];
+        } else if (verifiedUser.status === 'ACTIVE' && verifiedUser.subscription_expiry !== null) {
+            // Compte existant : ne pas prolonger.
+        } else {
+            await client.query('ROLLBACK');
+            return res.status(409).json({ success: false, code: 'ERR_ACCOUNT_STATE_CONFLICT', message: 'État du compte incompatible avec l’activation.' });
+        }
+
+        const otpUpdate = await client.query(
+            `UPDATE otp_codes
+             SET used = true, consumed_at = NOW()
+             WHERE id = $1 AND used = false`,
+            [otpRow.id]
+        );
+
+        if (otpUpdate.rowCount !== 1) {
+            await client.query('ROLLBACK');
+            return res.status(409).json({ success: false, code: 'ERR_OTP_NOT_CONSUMED', message: 'Le code OTP a déjà été consommé ou ne peut plus être utilisé.' });
+        }
+
+        await client.query('COMMIT');
+        return res.json({ success: true, user: verifiedUser });
 
     } catch (err) {
         await client.query('ROLLBACK').catch(() => {});
