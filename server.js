@@ -179,12 +179,122 @@ function maskPhone(phone) {
 }
 
 // ==========================================
+// LEGAL ACCEPTANCES — VERSION 0.1-DRAFT
+// ==========================================
+
+const LEGAL_DOCUMENT_VERSIONS = Object.freeze({
+    AGE_DECLARATION: '0.1-DRAFT',
+    CGU: '0.1-DRAFT',
+    PRIVACY_ACK: '0.1-DRAFT',
+    MARKETING: '0.1-DRAFT'
+});
+
+function validateLegalConsent(body) {
+    if (body?.is_adult !== true) {
+        return {
+            valid: false,
+            code: 'ERR_AGE_DECLARATION_REQUIRED',
+            message: 'La déclaration de majorité est obligatoire.'
+        };
+    }
+
+    if (body?.accept_cgu !== true) {
+        return {
+            valid: false,
+            code: 'ERR_CGU_ACCEPTANCE_REQUIRED',
+            message: 'L’acceptation des CGU est obligatoire.'
+        };
+    }
+
+    if (body?.privacy_acknowledged !== true) {
+        return {
+            valid: false,
+            code: 'ERR_PRIVACY_ACK_REQUIRED',
+            message: 'La prise de connaissance de la politique de confidentialité est obligatoire.'
+        };
+    }
+
+    if (typeof body?.marketing_consent !== 'boolean') {
+        return {
+            valid: false,
+            code: 'ERR_MARKETING_CONSENT_INVALID',
+            message: 'Le choix relatif aux communications commerciales est invalide.'
+        };
+    }
+
+    return {
+        valid: true,
+        consent: {
+            is_adult: true,
+            accept_cgu: true,
+            privacy_acknowledged: true,
+            marketing_consent: body.marketing_consent
+        }
+    };
+}
+
+async function saveLegalAcceptances(
+    client,
+    userId,
+    consent,
+    source = 'REGISTER'
+) {
+    const acceptances = [
+        ['AGE_DECLARATION', consent.is_adult],
+        ['CGU', consent.accept_cgu],
+        ['PRIVACY_ACK', consent.privacy_acknowledged],
+        ['MARKETING', consent.marketing_consent]
+    ];
+
+    for (const [documentType, accepted] of acceptances) {
+        await client.query(
+            `INSERT INTO legal_acceptances
+                (user_id, document_type, document_version, accepted, source)
+             VALUES ($1, $2, $3, $4, $5)`,
+            [
+                userId,
+                documentType,
+                LEGAL_DOCUMENT_VERSIONS[documentType],
+                accepted,
+                source
+            ]
+        );
+    }
+}
+
+// ==========================================
 // 1. AUTHENTIFICATION
 // ==========================================
 
 // --- REGISTER (F-4.2 : bifurcation TEST / PRODUCTION) ---
 app.post('/api/v1/auth/register', mutationLimiter, async (req, res) => {
-    const { phone, password, vrp_code, referral_code } = req.body;
+    const {
+        phone,
+        password,
+        vrp_code,
+        referral_code,
+        is_adult,
+        accept_cgu,
+        privacy_acknowledged,
+        marketing_consent
+    } = req.body || {};
+
+    const legalValidation = validateLegalConsent({
+        is_adult,
+        accept_cgu,
+        privacy_acknowledged,
+        marketing_consent
+    });
+
+    if (!legalValidation.valid) {
+        return res.status(400).json({
+            success: false,
+            code: legalValidation.code,
+            message: legalValidation.message
+        });
+    }
+
+    const legalConsent = legalValidation.consent;
 
     if (!phone || typeof phone !== 'string' || phone.trim().length < 8 || !password) {
         return res.status(400).json({ success: false, code: 'ERR_INVALID_CREDENTIALS_FORMAT' });
@@ -222,13 +332,64 @@ app.post('/api/v1/auth/register', mutationLimiter, async (req, res) => {
         const newReferralCode = 'ME' + Date.now().toString(36).toUpperCase() + Math.random().toString(36).substring(2, 6).toUpperCase();
 
         if (config.AUTH_MODE === 'TEST') {
-            const insertResult = await pool.query(
-                `INSERT INTO users (phone, password_hash, role, status, referral_code, referred_by_id, subscription_expiry)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7)
-                 RETURNING id, phone, role, status, referral_code, subscription_expiry`,
-                [cleanPhone, hashedPassword, 'SUBSCRIBER', 'ACTIVE', newReferralCode, referredById, new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)]
-            );
-            const newUser = insertResult.rows[0];
+            const testClient = await pool.connect();
+            let newUser;
+
+            try {
+                await testClient.query('BEGIN');
+
+                const insertResult = await testClient.query(
+                    `INSERT INTO users
+                        (phone, password_hash, role, status, referral_code,
+                         referred_by_id, subscription_expiry)
+                     VALUES ($1, $2, $3, $4, $5, $6, $7)
+                     RETURNING id, phone, role, status, referral_code, subscription_expiry`,
+                    [
+                        cleanPhone,
+                        hashedPassword,
+                        'SUBSCRIBER',
+                        'ACTIVE',
+                        newReferralCode,
+                        referredById,
+                        new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+                    ]
+                );
+
+                newUser = insertResult.rows[0];
+
+                await saveLegalAcceptances(
+                    testClient,
+                    newUser.id,
+                    legalConsent
+                );
+
+                await testClient.query('COMMIT');
+
+            } catch (txErr) {
+                await testClient.query('ROLLBACK').catch(() => {});
+
+                if (txErr?.code === '23505') {
+                    return res.status(409).json({
+                        success: false,
+                        code: 'ERR_USER_EXISTS',
+                        message: 'Ce numéro est déjà enregistré.'
+                    });
+                }
+
+                console.error(
+                    '❌ Erreur Register (transaction TEST):',
+                    txErr.message
+                );
+
+                return res.status(500).json({
+                    success: false,
+                    code: 'ERR_DB_REGISTER'
+                });
+
+            } finally {
+                testClient.release();
+            }
+
             delete newUser.password_hash;
 
             return res.status(201).json({
@@ -255,6 +416,12 @@ app.post('/api/v1/auth/register', mutationLimiter, async (req, res) => {
             );
             newUser = insertResult.rows[0];
             delete newUser.password_hash;
+
+            await saveLegalAcceptances(
+                client,
+                newUser.id,
+                legalConsent
+            );
 
             await client.query(
                 `UPDATE otp_codes
@@ -1713,7 +1880,8 @@ app.post('/api/v1/payments/webhook', async (req, res) => {
         !Number.isInteger(userId) ||
         userId <= 0 ||
         typeof data.amount !== 'number' ||
-        data.amount <= 0
+        !Number.isFinite(data.amount) ||
+        data.amount !== 500
     ) {
         return res.status(400).json({ success: false, code: 'ERR_INVALID_WEBHOOK_DATA' });
     }
@@ -1735,7 +1903,7 @@ app.post('/api/v1/payments/webhook', async (req, res) => {
         await client.query(`
             UPDATE users 
             SET status = 'ACTIVE',
-                subscription_expiry = COALESCE(subscription_expiry, CURRENT_TIMESTAMP) + INTERVAL '30 days'
+                subscription_expiry = GREATEST(subscription_expiry, CURRENT_TIMESTAMP) + INTERVAL '30 days'
             WHERE id = $1
         `, [userId]);
 
